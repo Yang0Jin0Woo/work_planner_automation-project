@@ -131,7 +131,6 @@ public class AnalysisSessionService {
         }
         return normalized;
     }
-
     private String normalizeStatus(String status) {
         String normalized = trimToDefault(status, "NOT_STARTED").toUpperCase();
         return switch (normalized) {

@@ -127,23 +127,6 @@
             </div>
         </section>
 
-        <section class="panel two-column report-note-panel">
-            <div>
-                <h2>최종 보고 메모</h2>
-                <label>핵심 방향</label>
-                <textarea rows="3" th:field="*{executiveDirection}" readonly data-editable="true"></textarea>
-                <label>검토 포인트</label>
-                <textarea rows="3" th:field="*{priorityReviewPoint}" readonly data-editable="true"></textarea>
-                <label>한 줄 결론</label>
-                <input type="text" th:field="*{executiveConclusion}" readonly data-editable="true">
-            </div>
-            <div>
-                <h2>문서 요약</h2>
-                <input type="text" th:field="*{title}" readonly data-editable="true">
-                <textarea rows="5" th:field="*{summary}" readonly data-editable="true"></textarea>
-            </div>
-        </section>
-
         <div class="submit-row edit-actions hidden" id="editActions">
             <button type="submit" class="primary-button">저장</button>
             <button type="button" class="secondary-button" id="cancelButton">취소</button>
