@@ -2,6 +2,7 @@ package com.example.BPA_project.model;
 
 import com.example.BPA_project.dto.AnalysisResultDto;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 public class AnalysisSession {
 
@@ -12,6 +13,7 @@ public class AnalysisSession {
     private String sourceStatus;
     private String message;
     private String reportPath;
+    private int analyzedChunkCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -69,6 +71,33 @@ public class AnalysisSession {
 
     public void setReportPath(String reportPath) {
         this.reportPath = reportPath;
+    }
+
+    public int getAnalyzedChunkCount() {
+        return analyzedChunkCount;
+    }
+
+    public void setAnalyzedChunkCount(int analyzedChunkCount) {
+        this.analyzedChunkCount = analyzedChunkCount;
+    }
+
+    public int getSourceTextLength() {
+        return sourceText == null ? 0 : sourceText.length();
+    }
+
+    public String getFormattedFileSize() {
+        if (storedFileInfo == null) {
+            return "0 B";
+        }
+
+        long size = storedFileInfo.getSize();
+        if (size < 1024) {
+            return size + " B";
+        }
+        if (size < 1024 * 1024) {
+            return String.format(Locale.US, "%.1f KB", size / 1024.0);
+        }
+        return String.format(Locale.US, "%.2f MB", size / (1024.0 * 1024.0));
     }
 
     public LocalDateTime getCreatedAt() {

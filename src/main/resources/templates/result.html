@@ -27,13 +27,28 @@
     <div class="alert success" th:if="${successMessage}" th:text="${successMessage}"></div>
     <div class="alert info" th:if="${analysisSession.message}" th:text="${analysisSession.message}"></div>
 
+    <section class="meta-card">
+        <div>
+            <strong>파일 크기</strong>
+            <span th:text="${analysisSession.formattedFileSize}">0 B</span>
+        </div>
+        <div>
+            <strong>추출 텍스트 길이</strong>
+            <span th:text="${#numbers.formatInteger(analysisSession.sourceTextLength, 0, 'COMMA')} + '자'">0자</span>
+        </div>
+        <div>
+            <strong>청크 수</strong>
+            <span th:text="${analysisSession.analyzedChunkCount} + '개'">0개</span>
+        </div>
+    </section>
+
     <form class="editor-form" id="resultForm"
           th:action="@{/documents/{sessionId}/update(sessionId=${analysisSession.sessionId})}"
           th:object="${result}" method="post">
         <input type="hidden" th:field="*{documentType}">
 
         <section class="panel">
-            <h2>핵심 요약</h2>
+            <h2>문서 요약</h2>
             <input type="text" th:field="*{title}" readonly data-editable="true">
             <textarea rows="5" th:field="*{summary}" readonly data-editable="true"></textarea>
         </section>
@@ -62,12 +77,28 @@
                         </select>
                     </div>
                     <div>
-                        <label>일정</label>
+                        <label>상태</label>
+                        <select th:field="*{tasks[__${stat.index}__].status}" disabled data-editable="true">
+                            <option value="NOT_STARTED">미착수</option>
+                            <option value="IN_PROGRESS">진행 중</option>
+                            <option value="COMPLETED">완료</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>예정일</label>
                         <input type="text" th:field="*{tasks[__${stat.index}__].dueDate}" readonly data-editable="true">
+                    </div>
+                    <div>
+                        <label>완료일</label>
+                        <input type="text" th:field="*{tasks[__${stat.index}__].completedAt}" readonly data-editable="true">
                     </div>
                     <div>
                         <label>담당자</label>
                         <input type="text" th:field="*{tasks[__${stat.index}__].owner}" readonly data-editable="true">
+                    </div>
+                    <div>
+                        <label>최종 확인자</label>
+                        <input type="text" th:field="*{tasks[__${stat.index}__].reviewer}" readonly data-editable="true">
                     </div>
                 </div>
             </div>

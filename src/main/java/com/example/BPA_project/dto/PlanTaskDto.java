@@ -10,8 +10,13 @@ public class PlanTaskDto {
     @NotBlank(message = "우선순위를 선택해주세요.")
     private String priority;
 
+    @NotBlank(message = "상태를 선택해주세요.")
+    private String status;
+
     private String dueDate;
+    private String completedAt;
     private String owner;
+    private String reviewer;
 
     public String getTask() {
         return task;
@@ -29,6 +34,14 @@ public class PlanTaskDto {
         this.priority = priority;
     }
 
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
     public String getDueDate() {
         return dueDate;
     }
@@ -37,11 +50,27 @@ public class PlanTaskDto {
         this.dueDate = dueDate;
     }
 
+    public String getCompletedAt() {
+        return completedAt;
+    }
+
+    public void setCompletedAt(String completedAt) {
+        this.completedAt = completedAt;
+    }
+
     public String getOwner() {
         return owner;
     }
 
     public void setOwner(String owner) {
         this.owner = owner;
+    }
+
+    public String getReviewer() {
+        return reviewer;
+    }
+
+    public void setReviewer(String reviewer) {
+        this.reviewer = reviewer;
     }
 }

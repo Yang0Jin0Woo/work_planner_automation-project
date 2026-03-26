@@ -63,12 +63,13 @@ public class DocumentController {
 
         if ("pdf".equals(storedFileInfo.getExtension())) {
             String sourceText = pdfTextExtractorService.extractText(Path.of(storedFileInfo.getAbsolutePath()));
+            int chunkCount = openAiPlanningService.estimateChunkCount(sourceText);
             AnalysisResultDto result = openAiPlanningService.analyze(
                     uploadForm.getDocumentType(),
                     storedFileInfo.getOriginalFileName(),
                     sourceText
             );
-            analysisSession = analysisSessionService.createPdfSession(storedFileInfo, sourceText, result);
+            analysisSession = analysisSessionService.createPdfSession(storedFileInfo, sourceText, chunkCount, result);
         } else {
             analysisSession = analysisSessionService.createUnsupportedSession(storedFileInfo, uploadForm.getDocumentType());
         }

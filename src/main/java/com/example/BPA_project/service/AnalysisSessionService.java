@@ -32,9 +32,13 @@ public class AnalysisSessionService {
         this.analysisDir = fileStorageService.analysisDir();
     }
 
-    public AnalysisSession createPdfSession(StoredFileInfo fileInfo, String sourceText, AnalysisResultDto resultDto) {
+    public AnalysisSession createPdfSession(StoredFileInfo fileInfo,
+                                            String sourceText,
+                                            int chunkCount,
+                                            AnalysisResultDto resultDto) {
         AnalysisSession session = baseSession(fileInfo);
         session.setSourceText(sourceText);
+        session.setAnalyzedChunkCount(chunkCount);
         session.setSourceStatus("ANALYZED");
         session.setMessage("PDF 분석이 완료되었습니다.");
         session.setAnalysisResult(normalize(resultDto));
@@ -46,17 +50,18 @@ public class AnalysisSessionService {
         AnalysisResultDto result = new AnalysisResultDto();
         result.setDocumentType(documentType);
         result.setTitle(fileInfo.getOriginalFileName());
-        result.setSummary("PPT와 PPTX 파일은 업로드만 지원되며, 현재 MVP에서는 변환 없이 안내 메시지만 제공합니다.");
+        result.setSummary("PPT 또는 PPTX 파일은 업로드만 지원되며 현재 MVP에서는 변환 없이 안내 메시지만 제공합니다.");
         result.setScheduleDraft("슬라이드를 PDF로 변환한 뒤 다시 업로드하면 AI 실행 계획 초안을 생성할 수 있습니다.");
-        result.setGoals(List.of("PDF 중심 MVP 검증", "PPT 변환 확장 포인트 유지"));
+        result.setGoals(List.of("PDF 전환 MVP 검증", "PPT 변환 확장 사양 정의"));
         result.setTasks(new ArrayList<>());
         result.setRisks(List.of("슬라이드 텍스트 추출과 변환 기능은 아직 구현되지 않았습니다."));
         result.setQuestions(List.of("다음 버전에서 PPT/PPTX 자동 변환을 지원할지 결정이 필요합니다."));
 
         AnalysisSession session = baseSession(fileInfo);
         session.setSourceText("");
+        session.setAnalyzedChunkCount(0);
         session.setSourceStatus("UPLOADED_ONLY");
-        session.setMessage("PPT와 PPTX 파일은 업로드만 처리되었습니다. 분석하려면 PDF로 변환 후 다시 업로드해주세요.");
+        session.setMessage("PPT 또는 PPTX 파일은 업로드만 처리되었습니다. 분석하려면 PDF로 변환 후 다시 업로드해주세요.");
         session.setAnalysisResult(result);
         persist(session);
         return session;
@@ -147,11 +152,22 @@ public class AnalysisSessionService {
             PlanTaskDto item = new PlanTaskDto();
             item.setTask(task.getTask().trim());
             item.setPriority(trimToDefault(task.getPriority(), "MEDIUM"));
+            item.setStatus(normalizeStatus(task.getStatus()));
             item.setDueDate(trimOrNull(task.getDueDate()));
+            item.setCompletedAt(trimOrNull(task.getCompletedAt()));
             item.setOwner(trimOrNull(task.getOwner()));
+            item.setReviewer(trimOrNull(task.getReviewer()));
             normalized.add(item);
         }
         return normalized;
+    }
+
+    private String normalizeStatus(String status) {
+        String normalized = trimToDefault(status, "NOT_STARTED").toUpperCase();
+        return switch (normalized) {
+            case "NOT_STARTED", "IN_PROGRESS", "COMPLETED" -> normalized;
+            default -> "NOT_STARTED";
+        };
     }
 
     private String trimToDefault(String value, String fallback) {

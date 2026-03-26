@@ -39,9 +39,24 @@ public final class JsonSchemaFactory {
                 .add("HIGH")
                 .add("MEDIUM")
                 .add("LOW");
+        taskProps.putObject("status")
+                .put("type", "string")
+                .putArray("enum")
+                .add("NOT_STARTED")
+                .add("IN_PROGRESS")
+                .add("COMPLETED");
         taskProps.putObject("dueDate").putArray("type").add("string").add("null");
+        taskProps.putObject("completedAt").putArray("type").add("string").add("null");
         taskProps.putObject("owner").putArray("type").add("string").add("null");
-        taskItems.putArray("required").add("task").add("priority").add("dueDate").add("owner");
+        taskProps.putObject("reviewer").putArray("type").add("string").add("null");
+        taskItems.putArray("required")
+                .add("task")
+                .add("priority")
+                .add("status")
+                .add("dueDate")
+                .add("completedAt")
+                .add("owner")
+                .add("reviewer");
         taskItems.put("additionalProperties", false);
 
         ObjectNode risks = properties.putObject("risks");
