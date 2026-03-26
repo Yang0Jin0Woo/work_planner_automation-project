@@ -8,48 +8,10 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "app")
 public class AppProperties {
 
-    private final Storage storage = new Storage();
     private final OpenAi openAi = new OpenAi();
-
-    public Storage getStorage() {
-        return storage;
-    }
 
     public OpenAi getOpenAi() {
         return openAi;
-    }
-
-    public static class Storage {
-        @NotBlank
-        private String uploadDir;
-        @NotBlank
-        private String analysisDir;
-        @NotBlank
-        private String reportDir;
-
-        public String getUploadDir() {
-            return uploadDir;
-        }
-
-        public void setUploadDir(String uploadDir) {
-            this.uploadDir = uploadDir;
-        }
-
-        public String getAnalysisDir() {
-            return analysisDir;
-        }
-
-        public void setAnalysisDir(String analysisDir) {
-            this.analysisDir = analysisDir;
-        }
-
-        public String getReportDir() {
-            return reportDir;
-        }
-
-        public void setReportDir(String reportDir) {
-            this.reportDir = reportDir;
-        }
     }
 
     public static class OpenAi {

@@ -2,7 +2,6 @@ package com.example.BPA_project.service;
 
 import com.example.BPA_project.exception.DocumentAnalysisException;
 import java.io.IOException;
-import java.nio.file.Path;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -11,8 +10,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class PdfTextExtractorService {
 
-    public String extractText(Path pdfPath) {
-        try (PDDocument document = Loader.loadPDF(pdfPath.toFile())) {
+    public String extractText(byte[] pdfBytes) {
+        try (PDDocument document = Loader.loadPDF(pdfBytes)) {
             PDFTextStripper stripper = new PDFTextStripper();
             String text = stripper.getText(document);
             if (text == null || text.isBlank()) {

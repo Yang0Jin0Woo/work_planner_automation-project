@@ -4,13 +4,8 @@ import com.example.BPA_project.dto.AnalysisResultDto;
 import com.example.BPA_project.dto.DocumentType;
 import com.example.BPA_project.dto.PlanTaskDto;
 import com.example.BPA_project.exception.DocumentAnalysisException;
-import com.example.BPA_project.exception.FileStorageException;
 import com.example.BPA_project.model.AnalysisSession;
 import com.example.BPA_project.model.StoredFileInfo;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,13 +19,6 @@ import org.springframework.util.StringUtils;
 public class AnalysisSessionService {
 
     private final Map<String, AnalysisSession> sessions = new ConcurrentHashMap<>();
-    private final ObjectMapper objectMapper;
-    private final Path analysisDir;
-
-    public AnalysisSessionService(ObjectMapper objectMapper, FileStorageService fileStorageService) {
-        this.objectMapper = objectMapper;
-        this.analysisDir = fileStorageService.analysisDir();
-    }
 
     public AnalysisSession createPdfSession(StoredFileInfo fileInfo,
                                             String sourceText,
@@ -50,7 +38,7 @@ public class AnalysisSessionService {
         AnalysisResultDto result = new AnalysisResultDto();
         result.setDocumentType(documentType);
         result.setTitle(fileInfo.getOriginalFileName());
-        result.setSummary("PPT 또는 PPTX 파일은 업로드만 지원되며 현재 MVP에서는 변환 없이 안내 메시지만 제공합니다.");
+        result.setSummary("PPT 또는 PPTX 파일은 업로드만 지원되며, 현재 MVP에서는 변환 없이 안내 메시지만 제공합니다.");
         result.setScheduleDraft("슬라이드를 PDF로 변환한 뒤 다시 업로드하면 AI 실행 계획 초안을 생성할 수 있습니다.");
         result.setGoals(List.of("PDF 전환 MVP 검증", "PPT 변환 확장 사양 정의"));
         result.setTasks(new ArrayList<>());
@@ -61,7 +49,7 @@ public class AnalysisSessionService {
         session.setSourceText("");
         session.setAnalyzedChunkCount(0);
         session.setSourceStatus("UPLOADED_ONLY");
-        session.setMessage("PPT 또는 PPTX 파일은 업로드만 처리되었습니다. 분석하려면 PDF로 변환 후 다시 업로드해주세요.");
+        session.setMessage("PPT 또는 PPTX 파일은 업로드만 처리했습니다. 분석하려면 PDF로 변환 후 다시 업로드해주세요.");
         session.setAnalysisResult(result);
         persist(session);
         return session;
@@ -69,22 +57,10 @@ public class AnalysisSessionService {
 
     public AnalysisSession getSession(String sessionId) {
         AnalysisSession session = sessions.get(sessionId);
-        if (session != null) {
-            return session;
+        if (session == null) {
+            throw new DocumentAnalysisException("분석 세션을 찾을 수 없습니다. 서버 재시작 후에는 이전 결과가 유지되지 않습니다.");
         }
-
-        Path path = analysisDir.resolve(sessionId + ".json");
-        if (!Files.exists(path)) {
-            throw new DocumentAnalysisException("분석 세션을 찾을 수 없습니다.");
-        }
-
-        try {
-            AnalysisSession loaded = objectMapper.readValue(path.toFile(), AnalysisSession.class);
-            sessions.put(sessionId, loaded);
-            return loaded;
-        } catch (IOException exception) {
-            throw new FileStorageException("저장된 분석 세션을 읽는 중 오류가 발생했습니다.", exception);
-        }
+        return session;
     }
 
     public AnalysisSession updateAnalysis(String sessionId, AnalysisResultDto updatedResult) {
@@ -106,12 +82,6 @@ public class AnalysisSessionService {
 
     private void persist(AnalysisSession session) {
         sessions.put(session.getSessionId(), session);
-        try {
-            objectMapper.writerWithDefaultPrettyPrinter()
-                    .writeValue(analysisDir.resolve(session.getSessionId() + ".json").toFile(), session);
-        } catch (IOException exception) {
-            throw new FileStorageException("분석 결과 JSON 저장에 실패했습니다.", exception);
-        }
     }
 
     private AnalysisResultDto normalize(AnalysisResultDto dto) {

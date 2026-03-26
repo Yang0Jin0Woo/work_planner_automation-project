@@ -10,10 +10,9 @@ import com.example.BPA_project.service.OpenAiPlanningService;
 import com.example.BPA_project.service.PdfTextExtractorService;
 import com.example.BPA_project.util.FileNameUtils;
 import jakarta.validation.Valid;
-import java.nio.file.Path;
+import java.io.IOException;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -62,7 +61,7 @@ public class DocumentController {
         AnalysisSession analysisSession;
 
         if ("pdf".equals(storedFileInfo.getExtension())) {
-            String sourceText = pdfTextExtractorService.extractText(Path.of(storedFileInfo.getAbsolutePath()));
+            String sourceText = extractPdfText(uploadForm);
             int chunkCount = openAiPlanningService.estimateChunkCount(sourceText);
             AnalysisResultDto result = openAiPlanningService.analyze(
                     uploadForm.getDocumentType(),
@@ -74,12 +73,12 @@ public class DocumentController {
             analysisSession = analysisSessionService.createUnsupportedSession(storedFileInfo, uploadForm.getDocumentType());
         }
 
-        redirectAttributes.addFlashAttribute("successMessage", "문서 업로드와 분석이 완료되었습니다.");
+        redirectAttributes.addFlashAttribute("successMessage", "문서 업로드 및 분석이 완료되었습니다.");
         return "redirect:/documents/" + analysisSession.getSessionId();
     }
 
     @GetMapping("/{sessionId}")
-    public String result(@PathVariable String sessionId, Model model) {
+    public String result(@PathVariable String sessionId, org.springframework.ui.Model model) {
         AnalysisSession analysisSession = analysisSessionService.getSession(sessionId);
         model.addAttribute("analysisSession", analysisSession);
         model.addAttribute("result", analysisSession.getAnalysisResult());
@@ -93,5 +92,13 @@ public class DocumentController {
         analysisSessionService.updateAnalysis(sessionId, result);
         redirectAttributes.addFlashAttribute("successMessage", "수정 내용이 저장되었습니다.");
         return "redirect:/documents/" + sessionId;
+    }
+
+    private String extractPdfText(UploadForm uploadForm) {
+        try {
+            return pdfTextExtractorService.extractText(uploadForm.getFile().getBytes());
+        } catch (IOException exception) {
+            throw new com.example.BPA_project.exception.DocumentAnalysisException("Failed to read the uploaded PDF.", exception);
+        }
     }
 }
