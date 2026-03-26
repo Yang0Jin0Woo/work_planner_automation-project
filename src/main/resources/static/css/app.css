@@ -161,6 +161,33 @@ button:hover, .primary-button:hover, .secondary-button:hover {
 .meta-card div { display: grid; gap: 6px; }
 .meta-card strong { font-size: 0.85rem; color: var(--muted); }
 
+.usage-card {
+    padding: 20px 24px;
+    margin-bottom: 18px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    background: rgba(255, 251, 244, 0.95);
+    border: 1px solid #dcc8a4;
+    border-radius: 20px;
+}
+
+.usage-card div {
+    display: grid;
+    gap: 8px;
+}
+
+.usage-card strong {
+    font-size: 0.9rem;
+    color: var(--accent-deep);
+}
+
+.usage-card p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
 .editor-form {
     display: grid;
     gap: 18px;

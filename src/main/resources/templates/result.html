@@ -44,6 +44,17 @@
         </div>
     </section>
 
+    <section class="usage-card">
+        <div>
+            <strong>문서 활용 목적</strong>
+            <p>회의 후속조치 정리, 실행계획 초안 작성, 상급자 보고 전 검토자료 정리에 활용합니다.</p>
+        </div>
+        <div>
+            <strong>작성 기준</strong>
+            <p>원문 근거 중심으로 정리하며, 문서에 명시되지 않은 일정, 담당, 상태는 추정하지 않고 비워두거나 TBD 수준으로 해석합니다.</p>
+        </div>
+    </section>
+
     <form class="editor-form" id="resultForm"
           th:action="@{/documents/{sessionId}/update(sessionId=${analysisSession.sessionId})}"
           th:object="${result}" method="post">
@@ -63,7 +74,7 @@
         </section>
 
         <section class="panel">
-            <h2>우선순위 및 해야 할 일</h2>
+            <h2>우선순위 업무</h2>
             <div class="task-card" th:each="task, stat : *{tasks}">
                 <label th:text="'할 일 ' + ${stat.count}"></label>
                 <input type="text" th:field="*{tasks[__${stat.index}__].task}" readonly data-editable="true">
@@ -72,9 +83,9 @@
                     <div>
                         <label>우선순위</label>
                         <select th:field="*{tasks[__${stat.index}__].priority}" disabled data-editable="true">
-                            <option value="HIGH">HIGH</option>
-                            <option value="MEDIUM">MEDIUM</option>
-                            <option value="LOW">LOW</option>
+                            <option value="HIGH">높음</option>
+                            <option value="MEDIUM">보통</option>
+                            <option value="LOW">낮음</option>
                         </select>
                     </div>
                     <div>
@@ -126,6 +137,7 @@
                 </div>
             </div>
         </section>
+
 
         <div class="submit-row edit-actions hidden" id="editActions">
             <button type="submit" class="primary-button">저장</button>
