@@ -24,8 +24,14 @@
         </div>
     </header>
 
-    <div class="alert success" th:if="${successMessage}" th:text="${successMessage}"></div>
-    <div class="alert info" th:if="${analysisSession.message}" th:text="${analysisSession.message}"></div>
+    <div class="alert success alert-dismissible" th:if="${successMessage}">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="alert-close" data-dismiss-alert aria-label="닫기">×</button>
+    </div>
+    <div class="alert info alert-dismissible" th:if="${analysisSession.message}">
+        <span th:text="${analysisSession.message}"></span>
+        <button type="button" class="alert-close" data-dismiss-alert aria-label="닫기">×</button>
+    </div>
 
     <section class="meta-card">
         <div>
@@ -140,6 +146,7 @@
         const cancelButton = document.getElementById('cancelButton');
         const editActions = document.getElementById('editActions');
         const editableFields = Array.from(form.querySelectorAll('[data-editable="true"]'));
+        const dismissButtons = Array.from(document.querySelectorAll('[data-dismiss-alert]'));
 
         const snapshot = () => editableFields.map((field) => ({
             field,
@@ -184,6 +191,15 @@
             editableFields.forEach((field) => {
                 if (field.tagName === 'SELECT') {
                     field.disabled = false;
+                }
+            });
+        });
+
+        dismissButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                const alert = button.closest('.alert');
+                if (alert) {
+                    alert.classList.add('hidden');
                 }
             });
         });

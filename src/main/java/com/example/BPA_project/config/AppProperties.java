@@ -57,7 +57,7 @@ public class AppProperties {
         private String apiUrl;
         private String apiKey;
         private String model = "gpt-4.1";
-        private int maxOutputTokens = 2500;
+        private int maxOutputTokens = 2300;
 
         public String getApiUrl() {
             return apiUrl;

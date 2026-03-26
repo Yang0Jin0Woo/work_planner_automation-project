@@ -33,9 +33,9 @@ public class OpenAiPlanningService {
     private static final int CHUNK_OVERLAP = 1_000;
     private static final int MAX_CHUNKS = 8;
     private static final int MAX_FINAL_INPUT_CHARS = 18_000;
-    private static final int CHUNK_SUMMARY_OUTPUT_TOKENS = 700;
-    private static final int STRUCTURED_RETRY_OUTPUT_TOKENS = 4_000;
-    private static final int STRUCTURED_COMPACT_RETRY_OUTPUT_TOKENS = 4_500;
+    private static final int CHUNK_SUMMARY_OUTPUT_TOKENS = 600;
+    private static final int STRUCTURED_RETRY_OUTPUT_TOKENS = 3_600;
+    private static final int STRUCTURED_COMPACT_RETRY_OUTPUT_TOKENS = 4_200;
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
