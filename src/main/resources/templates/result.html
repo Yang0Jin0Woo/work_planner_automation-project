@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${result.title} + ' | 실행 계획 결과'">실행 계획 결과</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body class="result-body">
+<main class="result-shell">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">AI Execution Planner</p>
+            <h1 th:text="${result.title}">결과 제목</h1>
+            <p class="subtle">
+                <span th:text="${result.documentType}"></span>
+                <span> / </span>
+                <span th:text="${session.storedFileInfo.originalFileName}"></span>
+            </p>
+        </div>
+        <div class="header-actions">
+            <a class="secondary-button" th:href="@{/}">새 문서 업로드</a>
+            <a class="primary-button" th:href="@{/reports/{sessionId}/download(sessionId=${session.sessionId})}">PDF 보고서 다운로드</a>
+        </div>
+    </header>
+
+    <div class="alert success" th:if="${successMessage}" th:text="${successMessage}"></div>
+    <div class="alert info" th:if="${session.message}" th:text="${session.message}"></div>
+
+    <section class="meta-card">
+        <div><strong>업로드 시각</strong><span th:text="${#temporals.format(session.storedFileInfo.uploadedAt, 'yyyy-MM-dd HH:mm')}"></span></div>
+        <div><strong>저장 파일</strong><span th:text="${session.storedFileInfo.savedFileName}"></span></div>
+        <div><strong>원본 크기</strong><span th:text="${session.storedFileInfo.size} + ' bytes'"></span></div>
+        <div><strong>처리 상태</strong><span th:text="${session.sourceStatus}"></span></div>
+    </section>
+
+    <form class="editor-form" th:action="@{/documents/{sessionId}/update(sessionId=${session.sessionId})}" th:object="${result}" method="post">
+        <input type="hidden" th:field="*{documentType}">
+
+        <section class="panel">
+            <h2>핵심 요약</h2>
+            <input type="text" th:field="*{title}" placeholder="제목">
+            <textarea th:field="*{summary}" rows="5"></textarea>
+        </section>
+
+        <section class="panel">
+            <h2>목표</h2>
+            <div class="list-grid" th:each="goal, stat : *{goals}">
+                <label th:text="'목표 ' + ${stat.count}"></label>
+                <input type="text" th:field="*{goals[__${stat.index}__]}">
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>우선순위 및 해야 할 일</h2>
+            <div class="task-card" th:each="task, stat : *{tasks}">
+                <label th:text="'할 일 ' + ${stat.count}"></label>
+                <input type="text" th:field="*{tasks[__${stat.index}__].task}" placeholder="할 일">
+
+                <div class="task-grid">
+                    <div>
+                        <label>우선순위</label>
+                        <select th:field="*{tasks[__${stat.index}__].priority}">
+                            <option value="HIGH">HIGH</option>
+                            <option value="MEDIUM">MEDIUM</option>
+                            <option value="LOW">LOW</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>일정</label>
+                        <input type="text" th:field="*{tasks[__${stat.index}__].dueDate}" placeholder="예: 2026-04-10 또는 미정">
+                    </div>
+                    <div>
+                        <label>담당자</label>
+                        <input type="text" th:field="*{tasks[__${stat.index}__].owner}" placeholder="예: 운영팀">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>일정 초안</h2>
+            <textarea th:field="*{scheduleDraft}" rows="4"></textarea>
+        </section>
+
+        <section class="panel two-column">
+            <div>
+                <h2>리스크</h2>
+                <div class="list-grid" th:each="risk, stat : *{risks}">
+                    <label th:text="'리스크 ' + ${stat.count}"></label>
+                    <input type="text" th:field="*{risks[__${stat.index}__]}">
+                </div>
+            </div>
+            <div>
+                <h2>추가 확인 필요 항목</h2>
+                <div class="list-grid" th:each="question, stat : *{questions}">
+                    <label th:text="'확인 항목 ' + ${stat.count}"></label>
+                    <input type="text" th:field="*{questions[__${stat.index}__]}">
+                </div>
+            </div>
+        </section>
+
+        <div class="submit-row">
+            <button type="submit">수정 내용 저장</button>
+        </div>
+    </form>
+</main>
+</body>
+</html>
