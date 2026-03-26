@@ -1,7 +1,6 @@
 package com.example.BPA_project.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public final class JsonSchemaFactory {
@@ -24,8 +23,9 @@ public final class JsonSchemaFactory {
         properties.putObject("summary").put("type", "string");
         properties.putObject("scheduleDraft").put("type", "string");
 
-        ArrayNode goalsItems = properties.putObject("goals").put("type", "array").putArray("items");
-        goalsItems.addObject().put("type", "string");
+        ObjectNode goals = properties.putObject("goals");
+        goals.put("type", "array");
+        goals.putObject("items").put("type", "string");
 
         ObjectNode tasks = properties.putObject("tasks");
         tasks.put("type", "array");
@@ -44,11 +44,13 @@ public final class JsonSchemaFactory {
         taskItems.putArray("required").add("task").add("priority").add("dueDate").add("owner");
         taskItems.put("additionalProperties", false);
 
-        ArrayNode risksItems = properties.putObject("risks").put("type", "array").putArray("items");
-        risksItems.addObject().put("type", "string");
+        ObjectNode risks = properties.putObject("risks");
+        risks.put("type", "array");
+        risks.putObject("items").put("type", "string");
 
-        ArrayNode questionItems = properties.putObject("questions").put("type", "array").putArray("items");
-        questionItems.addObject().put("type", "string");
+        ObjectNode questions = properties.putObject("questions");
+        questions.put("type", "array");
+        questions.putObject("items").put("type", "string");
 
         root.putArray("required")
                 .add("documentType")

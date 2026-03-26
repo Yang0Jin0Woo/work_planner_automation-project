@@ -13,21 +13,21 @@
         <h1>문서를 실행 계획으로 바꾸는<br>Spring Boot MVP</h1>
         <p class="hero-copy">
             PDF 문서를 업로드하면 AI가 핵심 요약, 목표, 실행 과제, 리스크, 추가 확인 항목까지 구조화된 실행 계획 초안을 생성합니다.
-            생성된 결과는 브라우저에서 수정한 뒤 PDF 보고서로 다시 내려받을 수 있습니다.
+            생성된 결과는 브라우저에서 수정한 뒤 다시 검토할 수 있습니다.
         </p>
 
         <div class="hero-grid">
             <div class="hero-item">
                 <strong>1. 업로드</strong>
-                <span>PDF 중심 분석, PPT/PPTX는 확장 포인트로 안내</span>
+                <span>PDF 중심 분석, PPT/PPTX는 업로드 후 안내 메시지 제공</span>
             </div>
             <div class="hero-item">
                 <strong>2. AI 구조화</strong>
                 <span>Responses API와 Structured Outputs 기반 JSON 결과</span>
             </div>
             <div class="hero-item">
-                <strong>3. 수정 및 배포</strong>
-                <span>브라우저 편집 후 A4 PDF 보고서 다운로드</span>
+                <strong>3. 수정</strong>
+                <span>브라우저에서 실행 계획 초안을 바로 편집</span>
             </div>
         </div>
     </section>
@@ -49,7 +49,10 @@
             <input id="file" type="file" th:field="*{file}" accept=".pdf,.ppt,.pptx">
 
             <p class="help-text">
-                PDF는 바로 분석합니다. PPT/PPTX는 1차 MVP에서 업로드 후 안내 메시지를 제공하며, 추후 PDF 변환 기능으로 확장할 수 있습니다.
+                PDF는 바로 분석합니다. PPT/PPTX는 1차 MVP에서 업로드 후 안내 메시지를 제공합니다.
+            </p>
+            <p class="help-text">
+                업로드 가능한 최대 파일 크기는 25MB입니다.
             </p>
 
             <button type="submit">업로드 후 실행 계획 생성</button>

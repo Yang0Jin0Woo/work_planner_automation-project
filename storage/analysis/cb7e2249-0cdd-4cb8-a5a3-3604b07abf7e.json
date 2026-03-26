@@ -1,0 +1,28 @@
+{
+  "sessionId" : "cb7e2249-0cdd-4cb8-a5a3-3604b07abf7e",
+  "storedFileInfo" : {
+    "originalFileName" : "금호이엔씨 presentation_v5(제출용).ppt",
+    "savedFileName" : "presentation_v5-1c47e97c-0f7e-430b-add7-6b7a93e337e2.ppt",
+    "contentType" : "application/vnd.ms-powerpoint",
+    "extension" : "ppt",
+    "absolutePath" : "C:\\study\\BPA_project\\BPA_project\\storage\\uploads\\presentation_v5-1c47e97c-0f7e-430b-add7-6b7a93e337e2.ppt",
+    "size" : 16195584,
+    "uploadedAt" : "2026-03-26T16:27:41.0921237"
+  },
+  "analysisResult" : {
+    "documentType" : "REPORT",
+    "title" : "금호이엔씨 presentation_v5(제출용).ppt",
+    "summary" : "PPT and PPTX upload is stored, but this MVP only provides a guidance message without conversion.",
+    "scheduleDraft" : "Convert the slide deck to PDF and upload it again to generate an AI execution plan draft.",
+    "goals" : [ "Validate the PDF-first MVP", "Keep a clear extension point for PPT conversion" ],
+    "tasks" : [ ],
+    "risks" : [ "Slide text extraction and conversion are not implemented in this version." ],
+    "questions" : [ "Should automatic PPT to PDF conversion be added in the next version?" ]
+  },
+  "sourceText" : "",
+  "sourceStatus" : "UPLOADED_ONLY",
+  "message" : "PPT and PPTX files are stored only. Convert them to PDF for analysis.",
+  "reportPath" : null,
+  "createdAt" : "2026-03-26T16:27:41.0921237",
+  "updatedAt" : "2026-03-26T16:27:41.0921237"
+}

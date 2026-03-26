@@ -19,6 +19,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -77,16 +79,30 @@ public class OpenAiPlanningService {
             return parseResponse(response.getBody());
         } catch (JsonProcessingException exception) {
             throw new DocumentAnalysisException("Failed to build the OpenAI request JSON.", exception);
+        } catch (HttpStatusCodeException exception) {
+            throw new DocumentAnalysisException(buildApiErrorMessage(exception), exception);
+        } catch (ResourceAccessException exception) {
+            throw new DocumentAnalysisException("Could not reach the OpenAI API. Check network access and proxy settings.", exception);
         } catch (RestClientException exception) {
-            throw new DocumentAnalysisException("OpenAI API call failed.", exception);
+            throw new DocumentAnalysisException("OpenAI API call failed: " + exception.getMessage(), exception);
         }
     }
 
     private AnalysisResultDto parseResponse(String responseBody) {
         try {
             JsonNode root = objectMapper.readTree(responseBody);
-            JsonNode output = root.path("output");
+            String status = root.path("status").asText();
+            if ("incomplete".equals(status)) {
+                String reason = root.path("incomplete_details").path("reason").asText("unknown");
+                throw new DocumentAnalysisException("OpenAI response was incomplete. Reason: " + reason + ".");
+            }
 
+            JsonNode directOutputText = root.path("output_text");
+            if (directOutputText.isTextual() && StringUtils.hasText(directOutputText.asText())) {
+                return objectMapper.readValue(directOutputText.asText(), AnalysisResultDto.class);
+            }
+
+            JsonNode output = root.path("output");
             for (JsonNode item : output) {
                 if (!"message".equals(item.path("type").asText())) {
                     continue;
@@ -104,7 +120,23 @@ public class OpenAiPlanningService {
 
             throw new DocumentAnalysisException("Structured JSON output was not found in the OpenAI response.");
         } catch (JsonProcessingException exception) {
-            throw new DocumentAnalysisException("Failed to parse the OpenAI structured JSON response.", exception);
+            throw new DocumentAnalysisException("Failed to parse the OpenAI structured JSON response. The model output may have been truncated.", exception);
+        }
+    }
+
+    private String buildApiErrorMessage(HttpStatusCodeException exception) {
+        String body = exception.getResponseBodyAsString();
+        if (!StringUtils.hasText(body)) {
+            return "OpenAI API call failed with status " + exception.getStatusCode() + ".";
+        }
+
+        try {
+            JsonNode errorRoot = objectMapper.readTree(body);
+            JsonNode error = errorRoot.path("error");
+            String message = error.path("message").asText(body);
+            return "OpenAI API call failed with status " + exception.getStatusCode() + ": " + message;
+        } catch (JsonProcessingException parsingException) {
+            return "OpenAI API call failed with status " + exception.getStatusCode() + ": " + body;
         }
     }
 

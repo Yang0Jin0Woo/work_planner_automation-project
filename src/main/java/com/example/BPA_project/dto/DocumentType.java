@@ -1,9 +1,9 @@
 package com.example.BPA_project.dto;
 
 public enum DocumentType {
-    MEETING("Meeting Material"),
-    REPORT("Report"),
-    PROPOSAL("Proposal");
+    MEETING("회의자료"),
+    REPORT("보고서"),
+    PROPOSAL("제안서");
 
     private final String label;
 

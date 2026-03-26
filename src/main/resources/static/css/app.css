@@ -144,6 +144,8 @@ button:hover, .primary-button:hover, .secondary-button:hover {
 
 .header-actions {
     display: flex;
+    justify-content: flex-end;
+    align-items: center;
     gap: 10px;
     flex-wrap: wrap;
 }
@@ -209,4 +211,25 @@ button:hover, .primary-button:hover, .secondary-button:hover {
 @media (max-width: 980px) {
     .landing-shell { grid-template-columns: 1fr; }
     .page-header, .meta-card, .two-column, .task-grid { grid-template-columns: 1fr; display: grid; }
+}
+
+.hidden {
+    display: none !important;
+}
+
+.edit-actions {
+    gap: 10px;
+}
+
+.editor-form input[readonly],
+.editor-form textarea[readonly],
+.editor-form select:disabled {
+    background: #f5f1e8;
+    color: #3c4650;
+}
+
+.editor-form.editing input.is-editing,
+.editor-form.editing textarea.is-editing,
+.editor-form.editing select.is-editing {
+    background: #fffdfa;
 }

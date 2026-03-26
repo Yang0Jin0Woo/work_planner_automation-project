@@ -48,18 +48,18 @@ public class DocumentController {
         if (bindingResult.hasErrors() || uploadForm.getFile() == null || uploadForm.getFile().isEmpty()) {
             redirectAttributes.addFlashAttribute("org.springframework.validation.BindingResult.uploadForm", bindingResult);
             redirectAttributes.addFlashAttribute("uploadForm", uploadForm);
-            redirectAttributes.addFlashAttribute("errorMessage", "Please select a document type and file.");
+            redirectAttributes.addFlashAttribute("errorMessage", "문서 유형과 파일을 확인해주세요.");
             return "redirect:/";
         }
 
         String extension = FileNameUtils.extension(uploadForm.getFile().getOriginalFilename());
         if (!extension.equals("pdf") && !extension.equals("ppt") && !extension.equals("pptx")) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Only PDF, PPT, and PPTX files are supported.");
+            redirectAttributes.addFlashAttribute("errorMessage", "PDF, PPT, PPTX 파일만 업로드할 수 있습니다.");
             return "redirect:/";
         }
 
         StoredFileInfo storedFileInfo = fileStorageService.store(uploadForm.getFile());
-        AnalysisSession session;
+        AnalysisSession analysisSession;
 
         if ("pdf".equals(storedFileInfo.getExtension())) {
             String sourceText = pdfTextExtractorService.extractText(Path.of(storedFileInfo.getAbsolutePath()));
@@ -68,20 +68,20 @@ public class DocumentController {
                     storedFileInfo.getOriginalFileName(),
                     sourceText
             );
-            session = analysisSessionService.createPdfSession(storedFileInfo, sourceText, result);
+            analysisSession = analysisSessionService.createPdfSession(storedFileInfo, sourceText, result);
         } else {
-            session = analysisSessionService.createUnsupportedSession(storedFileInfo, uploadForm.getDocumentType());
+            analysisSession = analysisSessionService.createUnsupportedSession(storedFileInfo, uploadForm.getDocumentType());
         }
 
-        redirectAttributes.addFlashAttribute("successMessage", "Document upload and processing completed.");
-        return "redirect:/documents/" + session.getSessionId();
+        redirectAttributes.addFlashAttribute("successMessage", "문서 업로드와 분석이 완료되었습니다.");
+        return "redirect:/documents/" + analysisSession.getSessionId();
     }
 
     @GetMapping("/{sessionId}")
     public String result(@PathVariable String sessionId, Model model) {
-        AnalysisSession session = analysisSessionService.getSession(sessionId);
-        model.addAttribute("session", session);
-        model.addAttribute("result", session.getAnalysisResult());
+        AnalysisSession analysisSession = analysisSessionService.getSession(sessionId);
+        model.addAttribute("analysisSession", analysisSession);
+        model.addAttribute("result", analysisSession.getAnalysisResult());
         return "result";
     }
 
@@ -90,7 +90,7 @@ public class DocumentController {
                          @ModelAttribute("result") AnalysisResultDto result,
                          RedirectAttributes redirectAttributes) {
         analysisSessionService.updateAnalysis(sessionId, result);
-        redirectAttributes.addFlashAttribute("successMessage", "Analysis result updated.");
+        redirectAttributes.addFlashAttribute("successMessage", "수정 내용이 저장되었습니다.");
         return "redirect:/documents/" + sessionId;
     }
 }

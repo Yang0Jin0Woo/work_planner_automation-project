@@ -36,7 +36,7 @@ public class AnalysisSessionService {
         AnalysisSession session = baseSession(fileInfo);
         session.setSourceText(sourceText);
         session.setSourceStatus("ANALYZED");
-        session.setMessage("PDF analysis completed.");
+        session.setMessage("PDF 분석이 완료되었습니다.");
         session.setAnalysisResult(normalize(resultDto));
         persist(session);
         return session;
@@ -46,17 +46,17 @@ public class AnalysisSessionService {
         AnalysisResultDto result = new AnalysisResultDto();
         result.setDocumentType(documentType);
         result.setTitle(fileInfo.getOriginalFileName());
-        result.setSummary("PPT and PPTX upload is stored, but this MVP only provides a guidance message without conversion.");
-        result.setScheduleDraft("Convert the slide deck to PDF and upload it again to generate an AI execution plan draft.");
-        result.setGoals(List.of("Validate the PDF-first MVP", "Keep a clear extension point for PPT conversion"));
+        result.setSummary("PPT와 PPTX 파일은 업로드만 지원되며, 현재 MVP에서는 변환 없이 안내 메시지만 제공합니다.");
+        result.setScheduleDraft("슬라이드를 PDF로 변환한 뒤 다시 업로드하면 AI 실행 계획 초안을 생성할 수 있습니다.");
+        result.setGoals(List.of("PDF 중심 MVP 검증", "PPT 변환 확장 포인트 유지"));
         result.setTasks(new ArrayList<>());
-        result.setRisks(List.of("Slide text extraction and conversion are not implemented in this version."));
-        result.setQuestions(List.of("Should automatic PPT to PDF conversion be added in the next version?"));
+        result.setRisks(List.of("슬라이드 텍스트 추출과 변환 기능은 아직 구현되지 않았습니다."));
+        result.setQuestions(List.of("다음 버전에서 PPT/PPTX 자동 변환을 지원할지 결정이 필요합니다."));
 
         AnalysisSession session = baseSession(fileInfo);
         session.setSourceText("");
         session.setSourceStatus("UPLOADED_ONLY");
-        session.setMessage("PPT and PPTX files are stored only. Convert them to PDF for analysis.");
+        session.setMessage("PPT와 PPTX 파일은 업로드만 처리되었습니다. 분석하려면 PDF로 변환 후 다시 업로드해주세요.");
         session.setAnalysisResult(result);
         persist(session);
         return session;
@@ -70,7 +70,7 @@ public class AnalysisSessionService {
 
         Path path = analysisDir.resolve(sessionId + ".json");
         if (!Files.exists(path)) {
-            throw new DocumentAnalysisException("Analysis session was not found.");
+            throw new DocumentAnalysisException("분석 세션을 찾을 수 없습니다.");
         }
 
         try {
@@ -78,7 +78,7 @@ public class AnalysisSessionService {
             sessions.put(sessionId, loaded);
             return loaded;
         } catch (IOException exception) {
-            throw new FileStorageException("Failed to read the saved analysis session.", exception);
+            throw new FileStorageException("저장된 분석 세션을 읽는 중 오류가 발생했습니다.", exception);
         }
     }
 
@@ -88,13 +88,6 @@ public class AnalysisSessionService {
         session.setUpdatedAt(LocalDateTime.now());
         persist(session);
         return session;
-    }
-
-    public void updateReportPath(String sessionId, String reportPath) {
-        AnalysisSession session = getSession(sessionId);
-        session.setReportPath(reportPath);
-        session.setUpdatedAt(LocalDateTime.now());
-        persist(session);
     }
 
     private AnalysisSession baseSession(StoredFileInfo fileInfo) {
@@ -112,20 +105,20 @@ public class AnalysisSessionService {
             objectMapper.writerWithDefaultPrettyPrinter()
                     .writeValue(analysisDir.resolve(session.getSessionId() + ".json").toFile(), session);
         } catch (IOException exception) {
-            throw new FileStorageException("Failed to save the analysis JSON file.", exception);
+            throw new FileStorageException("분석 결과 JSON 저장에 실패했습니다.", exception);
         }
     }
 
     private AnalysisResultDto normalize(AnalysisResultDto dto) {
         AnalysisResultDto normalized = new AnalysisResultDto();
         normalized.setDocumentType(dto.getDocumentType());
-        normalized.setTitle(trimToDefault(dto.getTitle(), "Untitled"));
-        normalized.setSummary(trimToDefault(dto.getSummary(), "No summary available."));
-        normalized.setScheduleDraft(trimToDefault(dto.getScheduleDraft(), "No schedule draft available."));
-        normalized.setGoals(normalizeStrings(dto.getGoals(), "No goals available."));
+        normalized.setTitle(trimToDefault(dto.getTitle(), "제목 없음"));
+        normalized.setSummary(trimToDefault(dto.getSummary(), "요약 정보가 없습니다."));
+        normalized.setScheduleDraft(trimToDefault(dto.getScheduleDraft(), "일정 초안 정보가 없습니다."));
+        normalized.setGoals(normalizeStrings(dto.getGoals(), "목표 정보가 없습니다."));
         normalized.setTasks(normalizeTasks(dto.getTasks()));
-        normalized.setRisks(normalizeStrings(dto.getRisks(), "No risks available."));
-        normalized.setQuestions(normalizeStrings(dto.getQuestions(), "No questions available."));
+        normalized.setRisks(normalizeStrings(dto.getRisks(), "리스크 정보가 없습니다."));
+        normalized.setQuestions(normalizeStrings(dto.getQuestions(), "추가 확인 필요 항목이 없습니다."));
         return normalized;
     }
 
