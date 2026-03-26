@@ -48,3 +48,6 @@ logs/
 *.log
 ### Secret config ###
 src/main/resources/application-secret.properties
+
+### Ignore all PDFs ###
+*.pdf
