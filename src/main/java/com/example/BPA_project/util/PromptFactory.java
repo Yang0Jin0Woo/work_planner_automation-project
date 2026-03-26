@@ -32,7 +32,7 @@ public final class PromptFactory {
         String compact = compactMode
                 ? """
                 Keep the response compact.
-                Return at most 3 goals, 5 tasks, 3 risks, and 3 questions.
+                Return at most 2 goals, 5 tasks, 2 risks, and 2 questions.
                 If the source contains many similar items, merge them into broader actionable items instead of listing each one separately.
                 """
                 : "";

@@ -18,6 +18,8 @@ import org.springframework.util.StringUtils;
 @Service
 public class AnalysisSessionService {
 
+    private static final int MAX_TASK_COUNT = 5;
+
     private final Map<String, AnalysisSession> sessions = new ConcurrentHashMap<>();
 
     public AnalysisSession createPdfSession(StoredFileInfo fileInfo,
@@ -38,12 +40,12 @@ public class AnalysisSessionService {
         AnalysisResultDto result = new AnalysisResultDto();
         result.setDocumentType(documentType);
         result.setTitle(fileInfo.getOriginalFileName());
-        result.setSummary("PPT 또는 PPTX 파일은 업로드만 지원되며, 현재 MVP에서는 변환 없이 안내 메시지만 제공합니다.");
+        result.setSummary("PPT 또는 PPTX 파일은 업로드만 지원되며 현재 MVP에서는 변환 없이 안내 메시지만 제공합니다.");
         result.setScheduleDraft("슬라이드를 PDF로 변환한 뒤 다시 업로드하면 AI 실행 계획 초안을 생성할 수 있습니다.");
         result.setGoals(List.of("PDF 전환 MVP 검증", "PPT 변환 확장 사양 정의"));
         result.setTasks(new ArrayList<>());
         result.setRisks(List.of("슬라이드 텍스트 추출과 변환 기능은 아직 구현되지 않았습니다."));
-        result.setQuestions(List.of("다음 버전에서 PPT/PPTX 자동 변환을 지원할지 결정이 필요합니다."));
+        result.setQuestions(List.of("다음 버전에서 PPT/PPTX 자동 변환 지원 여부를 결정할 필요가 있습니다."));
 
         AnalysisSession session = baseSession(fileInfo);
         session.setSourceText("");
@@ -128,9 +130,13 @@ public class AnalysisSessionService {
             item.setOwner(trimOrNull(task.getOwner()));
             item.setReviewer(trimOrNull(task.getReviewer()));
             normalized.add(item);
+            if (normalized.size() >= MAX_TASK_COUNT) {
+                break;
+            }
         }
         return normalized;
     }
+
     private String normalizeStatus(String status) {
         String normalized = trimToDefault(status, "NOT_STARTED").toUpperCase();
         return switch (normalized) {
