@@ -11,13 +11,16 @@ public class AnalysisResultDto {
     @NotNull
     private DocumentType documentType;
 
-    @NotBlank(message = "제목은 비워둘 수 없습니다.")
+    @NotBlank(message = "제목은 필수 입력값입니다.")
     private String title;
 
-    @NotBlank(message = "핵심 요약은 비워둘 수 없습니다.")
+    @NotBlank(message = "요약은 비워둘 수 없습니다.")
     private String summary;
 
     private String scheduleDraft;
+    private String executiveDirection;
+    private String priorityReviewPoint;
+    private String executiveConclusion;
 
     private List<String> goals = new ArrayList<>();
 
@@ -57,6 +60,30 @@ public class AnalysisResultDto {
 
     public void setScheduleDraft(String scheduleDraft) {
         this.scheduleDraft = scheduleDraft;
+    }
+
+    public String getExecutiveDirection() {
+        return executiveDirection;
+    }
+
+    public void setExecutiveDirection(String executiveDirection) {
+        this.executiveDirection = executiveDirection;
+    }
+
+    public String getPriorityReviewPoint() {
+        return priorityReviewPoint;
+    }
+
+    public void setPriorityReviewPoint(String priorityReviewPoint) {
+        this.priorityReviewPoint = priorityReviewPoint;
+    }
+
+    public String getExecutiveConclusion() {
+        return executiveConclusion;
+    }
+
+    public void setExecutiveConclusion(String executiveConclusion) {
+        this.executiveConclusion = executiveConclusion;
     }
 
     public List<String> getGoals() {
