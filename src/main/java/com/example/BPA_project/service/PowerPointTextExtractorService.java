@@ -22,10 +22,10 @@ import org.springframework.util.StringUtils;
 public class PowerPointTextExtractorService implements DocumentTextExtractor {
 
     private static final Pattern NUMBER_SECTION_PATTERN = Pattern.compile("^(?:[0-9]{1,2}(?:\\.[0-9]{1,2})*|[0-9]{1,2}[)])\\s*.+$");
-    private static final Pattern KOREAN_SECTION_PATTERN = Pattern.compile("^(?:[가-하][.]|[가-하][)])\\s*.+$");
-    private static final Pattern ROMAN_SECTION_PATTERN = Pattern.compile("^(?:[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+[.]|[①-⑳])\\s*.+$");
+    private static final Pattern KOREAN_SECTION_PATTERN = Pattern.compile("^(?:[\\uAC00-\\uD558][.]|[\\uAC00-\\uD558][)])\\s*.+$");
+    private static final Pattern ROMAN_SECTION_PATTERN = Pattern.compile("^(?:[\\u2160-\\u2169]+[.]|[\\u2460-\\u2473])\\s*.+$");
     private static final Pattern BRACKET_SECTION_PATTERN = Pattern.compile("^\\[[^\\]]+\\]\\s*.+$");
-    private static final Pattern YEAR_SECTION_PATTERN = Pattern.compile("^[0-9]{4}년\\s+.+$");
+    private static final Pattern YEAR_SECTION_PATTERN = Pattern.compile("^[0-9]{4}\\uB144\\s+.+$");
 
     @Override
     public boolean supports(String extension) {
@@ -152,12 +152,17 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
             return structuredRows;
         }
 
-        List<String> headers = splitColumns(tableLines.get(0));
+        int headerRowIndex = detectHeaderRowIndex(tableLines);
+        if (headerRowIndex < 0 || headerRowIndex >= tableLines.size() - 1) {
+            return structuredRows;
+        }
+
+        List<String> headers = splitColumns(tableLines.get(headerRowIndex));
         if (headers.size() < 2) {
             return structuredRows;
         }
 
-        for (int rowIndex = 1; rowIndex < tableLines.size(); rowIndex++) {
+        for (int rowIndex = headerRowIndex + 1; rowIndex < tableLines.size(); rowIndex++) {
             List<String> values = splitColumns(tableLines.get(rowIndex));
             if (values.size() != headers.size()) {
                 continue;
@@ -178,6 +183,82 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
         return structuredRows;
     }
 
+    private int detectHeaderRowIndex(List<String> tableLines) {
+        int candidateLimit = Math.min(3, tableLines.size());
+        int bestIndex = -1;
+        int bestScore = Integer.MIN_VALUE;
+        for (int index = 0; index < candidateLimit; index++) {
+            List<String> columns = splitColumns(tableLines.get(index));
+            int score = scoreHeaderRow(columns, index);
+            if (score > bestScore) {
+                bestScore = score;
+                bestIndex = index;
+            }
+        }
+        return bestScore >= 2 ? bestIndex : 0;
+    }
+
+    private int scoreHeaderRow(List<String> columns, int rowIndex) {
+        if (columns.size() < 2) {
+            return Integer.MIN_VALUE;
+        }
+
+        int score = 0;
+        if (rowIndex == 0) {
+            score += 1;
+        }
+
+        int keywordMatches = 0;
+        int filledColumns = 0;
+        for (String column : columns) {
+            String normalized = normalize(column);
+            if (!StringUtils.hasText(normalized) || "-".equals(normalized)) {
+                continue;
+            }
+            filledColumns++;
+            if (isHeaderKeyword(normalized)) {
+                keywordMatches++;
+            }
+            if (normalized.length() <= 12) {
+                score += 1;
+            } else if (normalized.length() >= 30) {
+                score -= 1;
+            }
+            if (looksLikeTitleOnlyCell(normalized)) {
+                score -= 2;
+            }
+        }
+
+        if (filledColumns == columns.size()) {
+            score += 1;
+        }
+        score += keywordMatches * 2;
+        return score;
+    }
+
+    private boolean isHeaderKeyword(String value) {
+        return value.contains("\uC77C\uC815")
+                || value.contains("\uAE30\uD55C")
+                || value.contains("\uB0A0\uC9DC")
+                || value.contains("\uB2F4\uB2F9")
+                || value.contains("\uBD80\uC11C")
+                || value.contains("\uAE08\uC561")
+                || value.contains("\uC608\uC0B0")
+                || value.contains("\uC0C1\uD0DC")
+                || value.contains("\uD56D\uBAA9")
+                || value.contains("\uAD6C\uBD84")
+                || value.contains("\uB0B4\uC6A9")
+                || value.contains("\uBE44\uACE0")
+                || value.contains("\uC9C4\uD589")
+                || value.contains("\uC644\uB8CC")
+                || value.contains("\uCC45\uC784")
+                || value.contains("\uBD84\uB958");
+    }
+
+    private boolean looksLikeTitleOnlyCell(String value) {
+        return value.length() > 20 && !value.contains("=") && !value.matches(".*[0-9].*");
+    }
+
     private List<String> splitColumns(String line) {
         String[] parts = line.split("\\|");
         List<String> normalized = new ArrayList<>();
@@ -196,9 +277,12 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
             }
         }
         if (!tableLines.isEmpty()) {
-            List<String> headers = splitColumns(tableLines.get(0));
-            if (!headers.isEmpty()) {
-                return String.join(" / ", headers);
+            int headerRowIndex = detectHeaderRowIndex(tableLines);
+            if (headerRowIndex >= 0) {
+                List<String> headers = splitColumns(tableLines.get(headerRowIndex));
+                if (!headers.isEmpty()) {
+                    return String.join(" / ", headers);
+                }
             }
         }
         return null;
@@ -220,7 +304,7 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
             score += 3;
         }
 
-        if (!line.endsWith(".") && !line.endsWith("다.") && !line.endsWith("요.")) {
+        if (!line.endsWith(".") && !line.endsWith("\uB2E4.") && !line.endsWith("\uC694.")) {
             score += 1;
         }
 
