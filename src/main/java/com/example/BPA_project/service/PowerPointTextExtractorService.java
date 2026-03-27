@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 import org.apache.poi.sl.usermodel.GroupShape;
@@ -170,41 +171,126 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
     private TableInterpretation interpretTable(List<String> tableLines) {
         List<String> structuredRows = new ArrayList<>();
         if (tableLines.size() < 2) {
-            return new TableInterpretation(null, structuredRows);
+            return new TableInterpretation(null, null, structuredRows);
         }
 
         int headerRowIndex = detectHeaderRowIndex(tableLines);
         if (headerRowIndex < 0 || headerRowIndex >= tableLines.size() - 1) {
-            return new TableInterpretation(detectTableTitle(tableLines, 0), structuredRows);
+            String tableTitle = detectTableTitle(tableLines, 0);
+            return new TableInterpretation(tableTitle, detectTableType(tableTitle, List.of()), structuredRows);
         }
 
         int headerEndIndex = detectHeaderEndIndex(tableLines, headerRowIndex);
         List<String> headers = mergeHeaderRows(tableLines, headerRowIndex, headerEndIndex);
+        String tableTitle = detectTableTitle(tableLines, headerRowIndex);
+        String tableType = detectTableType(tableTitle, headers);
         if (headers.size() < 2) {
-            return new TableInterpretation(detectTableTitle(tableLines, headerRowIndex), structuredRows);
+            return new TableInterpretation(tableTitle, tableType, structuredRows);
         }
 
-        String tableTitle = detectTableTitle(tableLines, headerRowIndex);
         for (int rowIndex = headerEndIndex + 1; rowIndex < tableLines.size(); rowIndex++) {
             List<String> values = alignColumns(splitColumns(tableLines.get(rowIndex)), headers.size());
             if (values.isEmpty() || isSeparatorRow(values) || looksLikeAnotherHeader(values)) {
                 continue;
             }
 
-            List<String> pairs = new ArrayList<>();
-            for (int columnIndex = 0; columnIndex < headers.size(); columnIndex++) {
-                String header = normalize(headers.get(columnIndex));
-                String value = columnIndex < values.size() ? normalize(values.get(columnIndex)) : null;
-                if (!StringUtils.hasText(header) || !StringUtils.hasText(value) || "-".equals(value)) {
-                    continue;
-                }
-                pairs.add(header + "=" + value);
-            }
+            List<String> pairs = buildStructuredPairs(headers, values, tableType);
             if (!pairs.isEmpty()) {
                 structuredRows.add("Structured row: " + String.join(", ", pairs));
             }
         }
-        return new TableInterpretation(tableTitle, structuredRows);
+        return new TableInterpretation(tableTitle, tableType, structuredRows);
+    }
+
+    private List<String> buildStructuredPairs(List<String> headers, List<String> values, String tableType) {
+        List<String> pairs = new ArrayList<>();
+        for (int columnIndex = 0; columnIndex < headers.size(); columnIndex++) {
+            String header = normalize(headers.get(columnIndex));
+            String value = columnIndex < values.size() ? normalize(values.get(columnIndex)) : null;
+            if (!StringUtils.hasText(header) || !StringUtils.hasText(value) || "-".equals(value)) {
+                continue;
+            }
+            pairs.add(header + "=" + value);
+
+            String normalizedDate = normalizeDateValue(header, value, tableType);
+            if (StringUtils.hasText(normalizedDate)) {
+                pairs.add(header + "(normalized)=" + normalizedDate);
+            }
+
+            String normalizedAmount = normalizeAmountValue(header, value, tableType);
+            if (StringUtils.hasText(normalizedAmount)) {
+                pairs.add(header + "(normalized)=" + normalizedAmount);
+            }
+        }
+        return pairs;
+    }
+
+    private String detectTableType(String tableTitle, List<String> headers) {
+        String merged = ((tableTitle == null ? "" : tableTitle) + " " + String.join(" ", headers)).toLowerCase(Locale.ROOT);
+        if (containsAny(merged, "일정", "기한", "마감", "due", "date", "schedule")) {
+            return "SCHEDULE";
+        }
+        if (containsAny(merged, "예산", "금액", "비용", "매출", "budget", "amount", "cost")) {
+            return "BUDGET";
+        }
+        if (containsAny(merged, "담당", "부서", "책임", "역할", "owner", "team", "role")) {
+            return "OWNER";
+        }
+        if (containsAny(merged, "상태", "진행", "완료", "status", "progress")) {
+            return "STATUS";
+        }
+        return "GENERAL";
+    }
+
+    private boolean containsAny(String value, String... keywords) {
+        for (String keyword : keywords) {
+            if (value.contains(keyword.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeDateValue(String header, String value, String tableType) {
+        String lowerHeader = header.toLowerCase(Locale.ROOT);
+        if (!("SCHEDULE".equals(tableType)
+                || lowerHeader.contains("일정")
+                || lowerHeader.contains("기한")
+                || lowerHeader.contains("날짜")
+                || lowerHeader.contains("date")
+                || lowerHeader.contains("due"))) {
+            return null;
+        }
+
+        String digits = value.replaceAll("[^0-9]", "");
+        if (digits.length() == 8) {
+            return digits.substring(0, 4) + "-" + digits.substring(4, 6) + "-" + digits.substring(6, 8);
+        }
+        if (digits.length() == 6) {
+            return "20" + digits.substring(0, 2) + "-" + digits.substring(2, 4) + "-" + digits.substring(4, 6);
+        }
+        return null;
+    }
+
+    private String normalizeAmountValue(String header, String value, String tableType) {
+        String lowerHeader = header.toLowerCase(Locale.ROOT);
+        if (!("BUDGET".equals(tableType)
+                || lowerHeader.contains("금액")
+                || lowerHeader.contains("예산")
+                || lowerHeader.contains("비용")
+                || lowerHeader.contains("amount")
+                || lowerHeader.contains("cost"))) {
+            return null;
+        }
+
+        String digits = value.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) {
+            return null;
+        }
+        if (value.contains("만원")) {
+            return digits + "만원";
+        }
+        return digits + "원";
     }
 
     private int detectHeaderRowIndex(List<String> tableLines) {
@@ -520,7 +606,7 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
         return StringUtils.hasText(normalized) ? normalized : null;
     }
 
-    private record TableInterpretation(String tableTitle, List<String> structuredRows) {
+    private record TableInterpretation(String tableTitle, String tableType, List<String> structuredRows) {
     }
 
     private static class SlideExtraction {
