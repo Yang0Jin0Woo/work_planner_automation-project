@@ -148,22 +148,37 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
             return new TableInterpretation(tableTitle, tableType, structuredRows);
         }
 
+        String rowContext = null;
+        List<String> previousValues = null;
         for (int rowIndex = headerEndIndex + 1; rowIndex < tableLines.size(); rowIndex++) {
-            List<String> values = alignColumns(splitColumns(tableLines.get(rowIndex)), headers.size());
+            List<String> rawValues = splitColumns(tableLines.get(rowIndex));
+            List<String> values = fillForwardBlanks(alignColumns(rawValues, headers.size()), previousValues);
             if (values.isEmpty() || isSeparatorRow(values) || looksLikeAnotherHeader(values)) {
                 continue;
             }
 
-            List<String> pairs = buildStructuredPairs(headers, values, tableType);
+            String subsectionLabel = detectSubsectionLabel(values, headers.size());
+            if (StringUtils.hasText(subsectionLabel)) {
+                rowContext = subsectionLabel;
+                continue;
+            }
+
+            List<String> pairs = isKeyValueStyleRow(values, headers.size())
+                    ? buildKeyValuePairs(values, tableType, rowContext)
+                    : buildStructuredPairs(headers, values, tableType, rowContext);
             if (!pairs.isEmpty()) {
                 structuredRows.add("Structured row: " + String.join(", ", pairs));
+                previousValues = values;
             }
         }
         return new TableInterpretation(tableTitle, tableType, structuredRows);
     }
 
-    private List<String> buildStructuredPairs(List<String> headers, List<String> values, String tableType) {
+    private List<String> buildStructuredPairs(List<String> headers, List<String> values, String tableType, String rowContext) {
         List<String> pairs = new ArrayList<>();
+        if (StringUtils.hasText(rowContext)) {
+            pairs.add("section=" + rowContext);
+        }
         for (int columnIndex = 0; columnIndex < headers.size(); columnIndex++) {
             String header = normalize(headers.get(columnIndex));
             String value = columnIndex < values.size() ? normalize(values.get(columnIndex)) : null;
@@ -181,6 +196,32 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
             if (StringUtils.hasText(normalizedAmount)) {
                 pairs.add(header + "(normalized)=" + normalizedAmount);
             }
+        }
+        return pairs;
+    }
+
+    private List<String> buildKeyValuePairs(List<String> values, String tableType, String rowContext) {
+        List<String> pairs = new ArrayList<>();
+        List<String> nonEmpty = nonEmptyColumns(values);
+        if (nonEmpty.size() < 2) {
+            return pairs;
+        }
+        if (StringUtils.hasText(rowContext)) {
+            pairs.add("section=" + rowContext);
+        }
+
+        String key = nonEmpty.get(0);
+        String value = nonEmpty.get(1);
+        pairs.add(key + "=" + value);
+
+        String normalizedDate = normalizeDateValue(key, value, tableType);
+        if (StringUtils.hasText(normalizedDate)) {
+            pairs.add(key + "(normalized)=" + normalizedDate);
+        }
+
+        String normalizedAmount = normalizeAmountValue(key, value, tableType);
+        if (StringUtils.hasText(normalizedAmount)) {
+            pairs.add(key + "(normalized)=" + normalizedAmount);
         }
         return pairs;
     }
@@ -413,6 +454,46 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
 
     private boolean looksLikeAnotherHeader(List<String> values) {
         return scoreHeaderRow(values, 1) >= 5 && !containsLikelyDataValue(values);
+    }
+    private List<String> fillForwardBlanks(List<String> values, List<String> previousValues) {
+        if (previousValues == null || previousValues.isEmpty() || values.isEmpty()) {
+            return values;
+        }
+        List<String> filled = new ArrayList<>(values);
+        int limit = Math.min(filled.size(), previousValues.size());
+        for (int index = 0; index < limit; index++) {
+            String current = normalize(filled.get(index));
+            String previous = normalize(previousValues.get(index));
+            if ((!StringUtils.hasText(current) || "-".equals(current))
+                    && StringUtils.hasText(previous)
+                    && index == 0) {
+                filled.set(index, previous);
+            }
+        }
+        return filled;
+    }
+
+    private String detectSubsectionLabel(List<String> values, int headerSize) {
+        List<String> nonEmpty = nonEmptyColumns(values);
+        if (nonEmpty.size() != 1) {
+            return null;
+        }
+        String candidate = nonEmpty.get(0);
+        if (candidate.length() > 40) {
+            return null;
+        }
+        if (isLikelyHeading(candidate, null) || candidate.endsWith("단계") || candidate.endsWith("구간") || candidate.endsWith("일정")) {
+            return candidate;
+        }
+        if (headerSize > 2 && !candidate.matches(".*[0-9]{2,}.*")) {
+            return candidate;
+        }
+        return null;
+    }
+
+    private boolean isKeyValueStyleRow(List<String> values, int headerSize) {
+        List<String> nonEmpty = nonEmptyColumns(values);
+        return headerSize <= 2 && nonEmpty.size() >= 2 && nonEmpty.get(0).length() <= 20;
     }
 
     private boolean isSeparatorRow(List<String> values) {
