@@ -60,14 +60,17 @@ public final class PromptFactory {
             case MEETING -> """
                     This is meeting material.
                     Focus on action items, follow-up schedule, likely owners, review responsibility, and unresolved discussion points.
+                    In STANDARD mode, return at most 8 tasks.
                     """;
             case REPORT -> """
                     This is a report.
                     Focus on core issues, response plan, progress status, priorities, risks, and decision support points.
+                    In STANDARD mode, return at most 6 tasks.
                     """;
             case PROPOSAL -> """
                     This is a proposal.
                     Focus on rollout timeline, preparation items, review points, and prerequisites for execution.
+                    In STANDARD mode, return at most 5 tasks.
                     """;
         };
     }

@@ -226,7 +226,7 @@ public class OpenAiPlanningService {
         format.put("type", "json_schema");
         format.put("name", "execution_plan");
         format.put("strict", true);
-        format.set("schema", JsonSchemaFactory.analysisSchema(objectMapper, detailLevel.name()));
+        format.set("schema", JsonSchemaFactory.analysisSchema(objectMapper, detailLevel.name(), documentType));
         return requestBody;
     }
 

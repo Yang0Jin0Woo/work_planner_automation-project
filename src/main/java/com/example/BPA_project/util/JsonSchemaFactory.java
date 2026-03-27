@@ -1,5 +1,6 @@
 package com.example.BPA_project.util;
 
+import com.example.BPA_project.dto.DocumentType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -9,15 +10,19 @@ public final class JsonSchemaFactory {
     }
 
     public static ObjectNode analysisSchema(ObjectMapper objectMapper) {
-        return analysisSchema(objectMapper, "STANDARD");
+        return analysisSchema(objectMapper, "STANDARD", DocumentType.MEETING);
     }
 
     public static ObjectNode analysisSchema(ObjectMapper objectMapper, boolean compactMode) {
-        return analysisSchema(objectMapper, compactMode ? "COMPACT" : "STANDARD");
+        return analysisSchema(objectMapper, compactMode ? "COMPACT" : "STANDARD", DocumentType.MEETING);
     }
 
     public static ObjectNode analysisSchema(ObjectMapper objectMapper, String detailLevel) {
-        Limits limits = Limits.forLevel(detailLevel);
+        return analysisSchema(objectMapper, detailLevel, DocumentType.MEETING);
+    }
+
+    public static ObjectNode analysisSchema(ObjectMapper objectMapper, String detailLevel, DocumentType documentType) {
+        Limits limits = Limits.forLevelAndType(detailLevel, documentType);
 
         ObjectNode root = objectMapper.createObjectNode();
         root.put("type", "object");
@@ -169,10 +174,15 @@ public final class JsonSchemaFactory {
                           int riskItemMaxLength,
                           int questionMaxItems,
                           int questionItemMaxLength) {
-        private static Limits forLevel(String detailLevel) {
-            return switch (detailLevel) {
-                case "COMPACT" -> new Limits(60, 320, 240, 2, 80, 4, 90, 2, 90, 2, 90);
-                default -> new Limits(100, 900, 700, 4, 140, 8, 160, 4, 160, 4, 160);
+        private static Limits forLevelAndType(String detailLevel, DocumentType documentType) {
+            if ("COMPACT".equals(detailLevel)) {
+                return new Limits(60, 320, 240, 2, 80, 4, 90, 2, 90, 2, 90);
+            }
+
+            return switch (documentType) {
+                case REPORT -> new Limits(100, 900, 700, 4, 140, 6, 160, 4, 160, 4, 160);
+                case PROPOSAL -> new Limits(100, 900, 700, 4, 140, 5, 160, 4, 160, 4, 160);
+                case MEETING -> new Limits(100, 900, 700, 4, 140, 8, 160, 4, 160, 4, 160);
             };
         }
     }

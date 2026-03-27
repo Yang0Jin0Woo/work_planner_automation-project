@@ -1,6 +1,7 @@
 package com.example.BPA_project.service;
 
 import com.example.BPA_project.dto.AnalysisResultDto;
+import com.example.BPA_project.dto.DocumentType;
 import com.example.BPA_project.dto.PlanTaskDto;
 import com.example.BPA_project.exception.DocumentAnalysisException;
 import com.example.BPA_project.model.AnalysisSession;
@@ -16,8 +17,6 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class AnalysisSessionService {
-
-    private static final int MAX_TASK_COUNT = 5;
 
     private final Map<String, AnalysisSession> sessions = new ConcurrentHashMap<>();
 
@@ -66,12 +65,13 @@ public class AnalysisSessionService {
 
     private AnalysisResultDto normalize(AnalysisResultDto dto) {
         AnalysisResultDto normalized = new AnalysisResultDto();
-        normalized.setDocumentType(dto.getDocumentType());
+        DocumentType documentType = dto.getDocumentType() == null ? DocumentType.MEETING : dto.getDocumentType();
+        normalized.setDocumentType(documentType);
         normalized.setTitle(trimToDefault(dto.getTitle(), "Untitled"));
         normalized.setSummary(trimToDefault(dto.getSummary(), "No summary available."));
         normalized.setScheduleDraft(trimToDefault(dto.getScheduleDraft(), "No schedule draft available."));
         normalized.setGoals(normalizeStrings(dto.getGoals(), "No goals available."));
-        normalized.setTasks(normalizeTasks(dto.getTasks()));
+        normalized.setTasks(normalizeTasks(documentType, dto.getTasks()));
         normalized.setRisks(normalizeStrings(dto.getRisks(), "No risks available."));
         normalized.setQuestions(normalizeStrings(dto.getQuestions(), "No follow-up questions."));
         return normalized;
@@ -89,11 +89,12 @@ public class AnalysisSessionService {
         return normalized.isEmpty() ? new ArrayList<>(List.of(fallback)) : new ArrayList<>(normalized);
     }
 
-    private List<PlanTaskDto> normalizeTasks(List<PlanTaskDto> tasks) {
+    private List<PlanTaskDto> normalizeTasks(DocumentType documentType, List<PlanTaskDto> tasks) {
         if (tasks == null || tasks.isEmpty()) {
             return new ArrayList<>();
         }
 
+        int maxTaskCount = maxTaskCount(documentType);
         List<PlanTaskDto> normalized = new ArrayList<>();
         for (PlanTaskDto task : tasks) {
             if (task == null || !StringUtils.hasText(task.getTask())) {
@@ -108,11 +109,19 @@ public class AnalysisSessionService {
             item.setOwner(trimOrNull(task.getOwner()));
             item.setReviewer(trimOrNull(task.getReviewer()));
             normalized.add(item);
-            if (normalized.size() >= MAX_TASK_COUNT) {
+            if (normalized.size() >= maxTaskCount) {
                 break;
             }
         }
         return normalized;
+    }
+
+    private int maxTaskCount(DocumentType documentType) {
+        return switch (documentType) {
+            case REPORT -> 6;
+            case PROPOSAL -> 5;
+            case MEETING -> 8;
+        };
     }
 
     private String normalizeStatus(String status) {
