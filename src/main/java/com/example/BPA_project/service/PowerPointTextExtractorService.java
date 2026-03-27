@@ -5,6 +5,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.apache.poi.sl.usermodel.GroupShape;
 import org.apache.poi.sl.usermodel.PictureShape;
 import org.apache.poi.sl.usermodel.Shape;
@@ -19,6 +20,12 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class PowerPointTextExtractorService implements DocumentTextExtractor {
+
+    private static final Pattern NUMBER_SECTION_PATTERN = Pattern.compile("^(?:[0-9]{1,2}(?:\\.[0-9]{1,2})*|[0-9]{1,2}[)])\\s*.+$");
+    private static final Pattern KOREAN_SECTION_PATTERN = Pattern.compile("^(?:[가-하][.]|[가-하][)])\\s*.+$");
+    private static final Pattern ROMAN_SECTION_PATTERN = Pattern.compile("^(?:[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+[.]|[①-⑳])\\s*.+$");
+    private static final Pattern BRACKET_SECTION_PATTERN = Pattern.compile("^\\[[^\\]]+\\]\\s*.+$");
+    private static final Pattern YEAR_SECTION_PATTERN = Pattern.compile("^[0-9]{4}년\\s+.+$");
 
     @Override
     public boolean supports(String extension) {
@@ -181,8 +188,10 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
     }
 
     private String detectSlideTitle(List<String> bodyLines, List<String> tableLines) {
-        for (String line : bodyLines) {
-            if (StringUtils.hasText(line) && line.length() <= 120) {
+        for (int index = 0; index < bodyLines.size(); index++) {
+            String line = bodyLines.get(index);
+            String nextLine = index + 1 < bodyLines.size() ? bodyLines.get(index + 1) : null;
+            if (isLikelyHeading(line, nextLine)) {
                 return line;
             }
         }
@@ -193,6 +202,41 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
             }
         }
         return null;
+    }
+
+    private boolean isLikelyHeading(String line, String nextLine) {
+        if (!StringUtils.hasText(line) || line.contains("|")) {
+            return false;
+        }
+
+        int score = 0;
+        if (line.length() <= 40) {
+            score += 2;
+        } else if (line.length() <= 80) {
+            score += 1;
+        }
+
+        if (matchesHeadingPattern(line)) {
+            score += 3;
+        }
+
+        if (!line.endsWith(".") && !line.endsWith("다.") && !line.endsWith("요.")) {
+            score += 1;
+        }
+
+        if (nextLine != null && line.length() < nextLine.length()) {
+            score += 1;
+        }
+
+        return score >= 4;
+    }
+
+    private boolean matchesHeadingPattern(String line) {
+        return NUMBER_SECTION_PATTERN.matcher(line).matches()
+                || KOREAN_SECTION_PATTERN.matcher(line).matches()
+                || ROMAN_SECTION_PATTERN.matcher(line).matches()
+                || BRACKET_SECTION_PATTERN.matcher(line).matches()
+                || YEAR_SECTION_PATTERN.matcher(line).matches();
     }
 
     private String buildVisualNote(String kind, String shapeName) {
