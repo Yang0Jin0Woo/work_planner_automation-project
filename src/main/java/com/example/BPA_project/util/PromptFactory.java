@@ -31,6 +31,8 @@ public final class PromptFactory {
                 Merge duplicates and near-duplicates aggressively.
                 Prefer concise phrases over long sentences.
                 Use short noun phrases where possible.
+                The input may already contain merged task, risk, goal, and question candidates from chunk-level extraction.
+                Preserve high-signal details from those candidates instead of discarding them.
                 """;
 
         String detailPrompt = switch (detailLevel) {
@@ -65,6 +67,22 @@ public final class PromptFactory {
         };
     }
 
+    public static String chunkExtractionInstructions(DocumentType documentType, int chunkNumber, int totalChunks) {
+        return """
+                You are analyzing one chunk of a larger business document.
+                Extract structured execution-planning candidates from this chunk.
+                Your response must follow the provided JSON schema exactly.
+                Capture only document-grounded facts from this chunk.
+                Write all user-facing content in Korean.
+                Keep items concise and scannable.
+                Merge very similar points inside this chunk.
+                For tasks, note any explicit or strongly implied priority, status, due date, completion date, owner, and reviewer.
+                Use NOT_STARTED when the text does not justify that the task is already underway or completed.
+                Use null or 'TBD' when the chunk does not justify a concrete owner, reviewer, or date.
+                This is chunk %d of %d for a %s document.
+                """.formatted(chunkNumber, totalChunks, documentType.name());
+    }
+
     public static String userPrompt(DocumentType documentType, String originalFileName, String extractedText) {
         return """
                 Uploaded document metadata:
@@ -75,5 +93,36 @@ public final class PromptFactory {
                 Document text:
                 %s
                 """.formatted(documentType.name(), originalFileName, extractedText);
+    }
+
+    public static String chunkExtractionPrompt(DocumentType documentType,
+                                               String originalFileName,
+                                               String chunkText,
+                                               int chunkNumber,
+                                               int totalChunks) {
+        return """
+                Uploaded document metadata:
+
+                - Document type: %s
+                - Original file name: %s
+                - Chunk: %d of %d
+
+                Chunk text:
+                %s
+                """.formatted(documentType.name(), originalFileName, chunkNumber, totalChunks, chunkText);
+    }
+
+    public static String mergedCandidatePrompt(DocumentType documentType,
+                                               String originalFileName,
+                                               String mergedCandidatesText) {
+        return """
+                Uploaded document metadata:
+
+                - Document type: %s
+                - Original file name: %s
+
+                Merged structured candidates from chunk analysis:
+                %s
+                """.formatted(documentType.name(), originalFileName, mergedCandidatesText);
     }
 }

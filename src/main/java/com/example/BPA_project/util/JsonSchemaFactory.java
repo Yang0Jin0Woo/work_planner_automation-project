@@ -49,37 +49,7 @@ public final class JsonSchemaFactory {
         ObjectNode tasks = properties.putObject("tasks");
         tasks.put("type", "array");
         tasks.put("maxItems", limits.taskMaxItems);
-        ObjectNode taskItems = tasks.putObject("items");
-        taskItems.put("type", "object");
-        ObjectNode taskProps = taskItems.putObject("properties");
-        taskProps.putObject("task")
-                .put("type", "string")
-                .put("maxLength", limits.taskTextMaxLength);
-        taskProps.putObject("priority")
-                .put("type", "string")
-                .putArray("enum")
-                .add("HIGH")
-                .add("MEDIUM")
-                .add("LOW");
-        taskProps.putObject("status")
-                .put("type", "string")
-                .putArray("enum")
-                .add("NOT_STARTED")
-                .add("IN_PROGRESS")
-                .add("COMPLETED");
-        taskProps.putObject("dueDate").putArray("type").add("string").add("null");
-        taskProps.putObject("completedAt").putArray("type").add("string").add("null");
-        taskProps.putObject("owner").putArray("type").add("string").add("null");
-        taskProps.putObject("reviewer").putArray("type").add("string").add("null");
-        taskItems.putArray("required")
-                .add("task")
-                .add("priority")
-                .add("status")
-                .add("dueDate")
-                .add("completedAt")
-                .add("owner")
-                .add("reviewer");
-        taskItems.put("additionalProperties", false);
+        tasks.set("items", taskItemSchema(objectMapper, limits.taskTextMaxLength));
 
         ObjectNode risks = properties.putObject("risks");
         risks.put("type", "array");
@@ -106,6 +76,86 @@ public final class JsonSchemaFactory {
                 .add("questions");
         root.put("additionalProperties", false);
         return root;
+    }
+
+    public static ObjectNode chunkAnalysisSchema(ObjectMapper objectMapper) {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("type", "object");
+
+        ObjectNode properties = root.putObject("properties");
+        properties.putObject("summary")
+                .put("type", "string")
+                .put("maxLength", 400);
+
+        ObjectNode goals = properties.putObject("goals");
+        goals.put("type", "array");
+        goals.put("maxItems", 4);
+        goals.putObject("items")
+                .put("type", "string")
+                .put("maxLength", 100);
+
+        ObjectNode tasks = properties.putObject("tasks");
+        tasks.put("type", "array");
+        tasks.put("maxItems", 5);
+        tasks.set("items", taskItemSchema(objectMapper, 120));
+
+        ObjectNode risks = properties.putObject("risks");
+        risks.put("type", "array");
+        risks.put("maxItems", 4);
+        risks.putObject("items")
+                .put("type", "string")
+                .put("maxLength", 100);
+
+        ObjectNode questions = properties.putObject("questions");
+        questions.put("type", "array");
+        questions.put("maxItems", 4);
+        questions.putObject("items")
+                .put("type", "string")
+                .put("maxLength", 100);
+
+        root.putArray("required")
+                .add("summary")
+                .add("goals")
+                .add("tasks")
+                .add("risks")
+                .add("questions");
+        root.put("additionalProperties", false);
+        return root;
+    }
+
+    private static ObjectNode taskItemSchema(ObjectMapper objectMapper, int taskTextMaxLength) {
+        ObjectNode taskItem = objectMapper.createObjectNode();
+        taskItem.put("type", "object");
+        ObjectNode taskProps = taskItem.putObject("properties");
+        taskProps.putObject("task")
+                .put("type", "string")
+                .put("maxLength", taskTextMaxLength);
+        taskProps.putObject("priority")
+                .put("type", "string")
+                .putArray("enum")
+                .add("HIGH")
+                .add("MEDIUM")
+                .add("LOW");
+        taskProps.putObject("status")
+                .put("type", "string")
+                .putArray("enum")
+                .add("NOT_STARTED")
+                .add("IN_PROGRESS")
+                .add("COMPLETED");
+        taskProps.putObject("dueDate").putArray("type").add("string").add("null");
+        taskProps.putObject("completedAt").putArray("type").add("string").add("null");
+        taskProps.putObject("owner").putArray("type").add("string").add("null");
+        taskProps.putObject("reviewer").putArray("type").add("string").add("null");
+        taskItem.putArray("required")
+                .add("task")
+                .add("priority")
+                .add("status")
+                .add("dueDate")
+                .add("completedAt")
+                .add("owner")
+                .add("reviewer");
+        taskItem.put("additionalProperties", false);
+        return taskItem;
     }
 
     private record Limits(int titleMaxLength,

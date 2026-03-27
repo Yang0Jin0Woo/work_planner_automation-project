@@ -2,7 +2,9 @@ package com.example.BPA_project.service;
 
 import com.example.BPA_project.config.AppProperties;
 import com.example.BPA_project.dto.AnalysisResultDto;
+import com.example.BPA_project.dto.ChunkAnalysisDto;
 import com.example.BPA_project.dto.DocumentType;
+import com.example.BPA_project.dto.PlanTaskDto;
 import com.example.BPA_project.exception.DocumentAnalysisException;
 import com.example.BPA_project.util.JsonSchemaFactory;
 import com.example.BPA_project.util.PromptFactory;
@@ -12,7 +14,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -43,7 +48,7 @@ public class OpenAiPlanningService {
     private static final int CHUNK_OVERLAP = 1_000;
     private static final int MAX_CHUNKS = 8;
     private static final int MAX_FINAL_INPUT_CHARS = 18_000;
-    private static final int CHUNK_SUMMARY_OUTPUT_TOKENS = 600;
+    private static final int CHUNK_ANALYSIS_OUTPUT_TOKENS = 900;
     private static final int SUMMARY_COMPRESSION_OUTPUT_TOKENS = 500;
     private static final int STRUCTURED_RETRY_OUTPUT_TOKENS = 4_000;
     private static final int STRUCTURED_COMPACT_RETRY_OUTPUT_TOKENS = 5_000;
@@ -51,6 +56,7 @@ public class OpenAiPlanningService {
     private static final int COMPACT_TRIGGER_CHUNK_COUNT = 2;
     private static final int COMPACT_TRIGGER_SUMMARY_LENGTH = 7_500;
     private static final int COMPRESSED_SUMMARY_TARGET_CHARS = 5_500;
+    private static final int MERGED_CANDIDATE_LIMIT = 12;
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
@@ -75,15 +81,15 @@ public class OpenAiPlanningService {
                 throw new DocumentAnalysisException("No text was available for analysis.");
             }
 
-            List<String> chunkSummaries = new ArrayList<>();
+            List<ChunkAnalysisDto> chunkAnalyses = new ArrayList<>();
             for (int index = 0; index < chunks.size(); index++) {
-                chunkSummaries.add(summarizeChunk(documentType, originalFileName, chunks.get(index), index + 1, chunks.size()));
+                chunkAnalyses.add(extractChunkAnalysis(documentType, originalFileName, chunks.get(index), index + 1, chunks.size()));
             }
 
-            String combinedSummary = combineChunkSummaries(chunkSummaries);
-            AnalysisMode analysisMode = chooseAnalysisMode(extractedText, chunks.size(), combinedSummary);
-            String finalSummary = prepareStructuredInput(documentType, originalFileName, combinedSummary, analysisMode);
-            return requestStructuredPlan(documentType, originalFileName, finalSummary, analysisMode);
+            String mergedCandidates = mergeChunkAnalyses(chunkAnalyses);
+            AnalysisMode analysisMode = chooseAnalysisMode(extractedText, chunks.size(), mergedCandidates);
+            String finalInput = prepareStructuredInput(documentType, originalFileName, mergedCandidates, analysisMode);
+            return requestStructuredPlan(documentType, originalFileName, finalInput, analysisMode);
         } catch (JsonProcessingException exception) {
             throw new DocumentAnalysisException("Failed to build the OpenAI request JSON.", exception);
         } catch (HttpStatusCodeException exception) {
@@ -99,13 +105,13 @@ public class OpenAiPlanningService {
         return splitIntoChunks(text).size();
     }
 
-    private String summarizeChunk(DocumentType documentType,
-                                  String originalFileName,
-                                  String chunkText,
-                                  int chunkNumber,
-                                  int totalChunks) throws JsonProcessingException {
-        ObjectNode requestBody = baseRequestBody(CHUNK_SUMMARY_OUTPUT_TOKENS);
-        requestBody.put("instructions", chunkSummaryInstructions(documentType, chunkNumber, totalChunks));
+    private ChunkAnalysisDto extractChunkAnalysis(DocumentType documentType,
+                                                  String originalFileName,
+                                                  String chunkText,
+                                                  int chunkNumber,
+                                                  int totalChunks) throws JsonProcessingException {
+        ObjectNode requestBody = baseRequestBody(CHUNK_ANALYSIS_OUTPUT_TOKENS);
+        requestBody.put("instructions", PromptFactory.chunkExtractionInstructions(documentType, chunkNumber, totalChunks));
 
         ArrayNode input = requestBody.putArray("input");
         ObjectNode userMessage = input.addObject();
@@ -113,24 +119,36 @@ public class OpenAiPlanningService {
         ArrayNode content = userMessage.putArray("content");
         content.addObject()
                 .put("type", "input_text")
-                .put("text", chunkUserPrompt(documentType, originalFileName, chunkText, chunkNumber, totalChunks));
+                .put("text", PromptFactory.chunkExtractionPrompt(documentType, originalFileName, chunkText, chunkNumber, totalChunks));
 
-        return parseTextResponse(sendRequest(requestBody));
+        ObjectNode text = requestBody.putObject("text");
+        ObjectNode format = text.putObject("format");
+        format.put("type", "json_schema");
+        format.put("name", "chunk_analysis");
+        format.put("strict", true);
+        format.set("schema", JsonSchemaFactory.chunkAnalysisSchema(objectMapper));
+
+        return parseStructuredResponse(
+                sendRequest(requestBody),
+                ChunkAnalysisDto.class,
+                "Structured chunk analysis was not found in the OpenAI response.",
+                "Failed to parse the OpenAI chunk analysis response."
+        );
     }
 
     private String prepareStructuredInput(DocumentType documentType,
                                           String originalFileName,
-                                          String combinedSummary,
+                                          String mergedCandidates,
                                           AnalysisMode analysisMode) throws JsonProcessingException {
-        if (analysisMode != AnalysisMode.COMPACT && combinedSummary.length() <= COMPRESSED_SUMMARY_TARGET_CHARS) {
-            return combinedSummary;
+        if (analysisMode != AnalysisMode.COMPACT && mergedCandidates.length() <= COMPRESSED_SUMMARY_TARGET_CHARS) {
+            return mergedCandidates;
         }
-        return compressSummary(documentType, originalFileName, combinedSummary);
+        return compressSummary(documentType, originalFileName, mergedCandidates);
     }
 
     private String compressSummary(DocumentType documentType,
                                    String originalFileName,
-                                   String combinedSummary) throws JsonProcessingException {
+                                   String mergedCandidates) throws JsonProcessingException {
         ObjectNode requestBody = baseRequestBody(SUMMARY_COMPRESSION_OUTPUT_TOKENS);
         requestBody.put("instructions", summaryCompressionInstructions(documentType));
 
@@ -140,21 +158,21 @@ public class OpenAiPlanningService {
         ArrayNode content = userMessage.putArray("content");
         content.addObject()
                 .put("type", "input_text")
-                .put("text", summaryCompressionPrompt(documentType, originalFileName, truncateForFinalStep(combinedSummary)));
+                .put("text", PromptFactory.mergedCandidatePrompt(documentType, originalFileName, truncateForFinalStep(mergedCandidates)));
 
         return parseTextResponse(sendRequest(requestBody));
     }
 
     private AnalysisResultDto requestStructuredPlan(DocumentType documentType,
                                                     String originalFileName,
-                                                    String summarizedText,
+                                                    String mergedCandidates,
                                                     AnalysisMode analysisMode) throws JsonProcessingException {
         int initialTokens = appProperties.getOpenAi().getMaxOutputTokens();
         DetailLevel initialLevel = analysisMode == AnalysisMode.COMPACT ? DetailLevel.COMPACT : DetailLevel.STANDARD;
         String responseBody = sendRequest(buildStructuredPlanRequest(
                 documentType,
                 originalFileName,
-                summarizedText,
+                mergedCandidates,
                 initialTokens,
                 initialLevel
         ));
@@ -165,7 +183,7 @@ public class OpenAiPlanningService {
             responseBody = sendRequest(buildStructuredPlanRequest(
                     documentType,
                     originalFileName,
-                    summarizedText,
+                    mergedCandidates,
                     STRUCTURED_RETRY_OUTPUT_TOKENS,
                     DetailLevel.STANDARD
             ));
@@ -175,18 +193,23 @@ public class OpenAiPlanningService {
             responseBody = sendRequest(buildStructuredPlanRequest(
                     documentType,
                     originalFileName,
-                    summarizedText,
+                    mergedCandidates,
                     STRUCTURED_COMPACT_RETRY_OUTPUT_TOKENS,
                     DetailLevel.COMPACT
             ));
         }
 
-        return parseStructuredResponse(responseBody);
+        return parseStructuredResponse(
+                responseBody,
+                AnalysisResultDto.class,
+                "Structured JSON output was not found in the OpenAI response.",
+                "Failed to parse the OpenAI structured JSON response. The model output may have been truncated."
+        );
     }
 
     private ObjectNode buildStructuredPlanRequest(DocumentType documentType,
                                                   String originalFileName,
-                                                  String summarizedText,
+                                                  String mergedCandidates,
                                                   int maxOutputTokens,
                                                   DetailLevel detailLevel) {
         ObjectNode requestBody = baseRequestBody(maxOutputTokens);
@@ -198,7 +221,7 @@ public class OpenAiPlanningService {
         ArrayNode content = userMessage.putArray("content");
         content.addObject()
                 .put("type", "input_text")
-                .put("text", PromptFactory.userPrompt(documentType, originalFileName, truncateForFinalStep(summarizedText)));
+                .put("text", PromptFactory.mergedCandidatePrompt(documentType, originalFileName, truncateForFinalStep(mergedCandidates)));
 
         ObjectNode text = requestBody.putObject("text");
         ObjectNode format = text.putObject("format");
@@ -209,13 +232,13 @@ public class OpenAiPlanningService {
         return requestBody;
     }
 
-    private AnalysisMode chooseAnalysisMode(String extractedText, int chunkCount, String summarizedText) {
+    private AnalysisMode chooseAnalysisMode(String extractedText, int chunkCount, String mergedCandidates) {
         int textLength = extractedText == null ? 0 : extractedText.length();
-        int summaryLength = summarizedText == null ? 0 : summarizedText.length();
+        int mergedLength = mergedCandidates == null ? 0 : mergedCandidates.length();
 
         if (textLength >= COMPACT_TRIGGER_TEXT_LENGTH
                 || chunkCount >= COMPACT_TRIGGER_CHUNK_COUNT
-                || summaryLength >= COMPACT_TRIGGER_SUMMARY_LENGTH) {
+                || mergedLength >= COMPACT_TRIGGER_SUMMARY_LENGTH) {
             return AnalysisMode.COMPACT;
         }
         return AnalysisMode.STANDARD;
@@ -252,35 +275,43 @@ public class OpenAiPlanningService {
         return response.getBody();
     }
 
-    private AnalysisResultDto parseStructuredResponse(String responseBody) {
+    private <T> T parseStructuredResponse(String responseBody,
+                                          Class<T> targetType,
+                                          String missingOutputMessage,
+                                          String parseErrorMessage) {
         try {
-            JsonNode root = readCompletedResponse(responseBody);
-
-            JsonNode directOutputText = root.path("output_text");
-            if (directOutputText.isTextual() && StringUtils.hasText(directOutputText.asText())) {
-                return objectMapper.readValue(directOutputText.asText(), AnalysisResultDto.class);
-            }
-
-            JsonNode output = root.path("output");
-            for (JsonNode item : output) {
-                if (!"message".equals(item.path("type").asText())) {
-                    continue;
-                }
-
-                for (JsonNode contentItem : item.path("content")) {
-                    if ("refusal".equals(contentItem.path("type").asText())) {
-                        throw new DocumentAnalysisException("OpenAI refused the request: " + contentItem.path("refusal").asText());
-                    }
-                    if ("output_text".equals(contentItem.path("type").asText())) {
-                        return objectMapper.readValue(contentItem.path("text").asText(), AnalysisResultDto.class);
-                    }
-                }
-            }
-
-            throw new DocumentAnalysisException("Structured JSON output was not found in the OpenAI response.");
+            String outputText = readStructuredOutputText(responseBody, missingOutputMessage);
+            return objectMapper.readValue(outputText, targetType);
         } catch (JsonProcessingException exception) {
-            throw new DocumentAnalysisException("Failed to parse the OpenAI structured JSON response. The model output may have been truncated.", exception);
+            throw new DocumentAnalysisException(parseErrorMessage, exception);
         }
+    }
+
+    private String readStructuredOutputText(String responseBody, String missingOutputMessage) throws JsonProcessingException {
+        JsonNode root = readCompletedResponse(responseBody);
+
+        JsonNode directOutputText = root.path("output_text");
+        if (directOutputText.isTextual() && StringUtils.hasText(directOutputText.asText())) {
+            return directOutputText.asText();
+        }
+
+        JsonNode output = root.path("output");
+        for (JsonNode item : output) {
+            if (!"message".equals(item.path("type").asText())) {
+                continue;
+            }
+
+            for (JsonNode contentItem : item.path("content")) {
+                if ("refusal".equals(contentItem.path("type").asText())) {
+                    throw new DocumentAnalysisException("OpenAI refused the request: " + contentItem.path("refusal").asText());
+                }
+                if ("output_text".equals(contentItem.path("type").asText())) {
+                    return contentItem.path("text").asText();
+                }
+            }
+        }
+
+        throw new DocumentAnalysisException(missingOutputMessage);
     }
 
     private String parseTextResponse(String responseBody) {
@@ -374,13 +405,139 @@ public class OpenAiPlanningService {
         return end;
     }
 
-    private String combineChunkSummaries(List<String> chunkSummaries) {
-        StringBuilder combined = new StringBuilder();
-        for (int index = 0; index < chunkSummaries.size(); index++) {
-            combined.append("[Chunk ").append(index + 1).append("]\n");
-            combined.append(chunkSummaries.get(index).trim()).append("\n\n");
+    private String mergeChunkAnalyses(List<ChunkAnalysisDto> chunkAnalyses) {
+        List<String> summaries = new ArrayList<>();
+        List<String> goals = new ArrayList<>();
+        List<String> risks = new ArrayList<>();
+        List<String> questions = new ArrayList<>();
+        Map<String, PlanTaskDto> mergedTasks = new LinkedHashMap<>();
+
+        for (ChunkAnalysisDto chunkAnalysis : chunkAnalyses) {
+            addUnique(summaries, chunkAnalysis.getSummary(), MERGED_CANDIDATE_LIMIT);
+            addUnique(goals, chunkAnalysis.getGoals(), MERGED_CANDIDATE_LIMIT);
+            addUnique(risks, chunkAnalysis.getRisks(), MERGED_CANDIDATE_LIMIT);
+            addUnique(questions, chunkAnalysis.getQuestions(), MERGED_CANDIDATE_LIMIT);
+            mergeTasks(mergedTasks, chunkAnalysis.getTasks());
         }
-        return combined.toString().trim();
+
+        return buildMergedCandidateText(
+                summaries,
+                goals,
+                new ArrayList<>(mergedTasks.values()),
+                risks,
+                questions
+        );
+    }
+
+    private void addUnique(List<String> target, List<String> source, int limit) {
+        if (source == null) {
+            return;
+        }
+        for (String item : source) {
+            addUnique(target, item, limit);
+        }
+    }
+
+    private void addUnique(List<String> target, String item, int limit) {
+        String normalized = normalizeCandidate(item);
+        if (!StringUtils.hasText(normalized) || target.size() >= limit) {
+            return;
+        }
+        for (String existing : target) {
+            if (normalizeKey(existing).equals(normalizeKey(normalized))) {
+                return;
+            }
+        }
+        target.add(normalized);
+    }
+
+    private void mergeTasks(Map<String, PlanTaskDto> mergedTasks, List<PlanTaskDto> tasks) {
+        if (tasks == null) {
+            return;
+        }
+        for (PlanTaskDto task : tasks) {
+            if (task == null || !StringUtils.hasText(task.getTask()) || mergedTasks.size() >= MERGED_CANDIDATE_LIMIT && !mergedTasks.containsKey(normalizeKey(task.getTask()))) {
+                continue;
+            }
+            String key = normalizeKey(task.getTask());
+            PlanTaskDto normalizedTask = normalizeTask(task);
+            PlanTaskDto existing = mergedTasks.get(key);
+            if (existing == null) {
+                mergedTasks.put(key, normalizedTask);
+                continue;
+            }
+            mergedTasks.put(key, mergeTask(existing, normalizedTask));
+        }
+    }
+
+    private PlanTaskDto normalizeTask(PlanTaskDto task) {
+        PlanTaskDto normalized = new PlanTaskDto();
+        normalized.setTask(normalizeCandidate(task.getTask()));
+        normalized.setPriority(normalizePriority(task.getPriority()));
+        normalized.setStatus(normalizeStatus(task.getStatus()));
+        normalized.setDueDate(trimOrNull(task.getDueDate()));
+        normalized.setCompletedAt(trimOrNull(task.getCompletedAt()));
+        normalized.setOwner(trimOrNull(task.getOwner()));
+        normalized.setReviewer(trimOrNull(task.getReviewer()));
+        return normalized;
+    }
+
+    private PlanTaskDto mergeTask(PlanTaskDto existing, PlanTaskDto incoming) {
+        PlanTaskDto merged = new PlanTaskDto();
+        merged.setTask(preferLonger(existing.getTask(), incoming.getTask()));
+        merged.setPriority(preferPriority(existing.getPriority(), incoming.getPriority()));
+        merged.setStatus(preferStatus(existing.getStatus(), incoming.getStatus()));
+        merged.setDueDate(preferFilled(existing.getDueDate(), incoming.getDueDate()));
+        merged.setCompletedAt(preferFilled(existing.getCompletedAt(), incoming.getCompletedAt()));
+        merged.setOwner(preferFilled(existing.getOwner(), incoming.getOwner()));
+        merged.setReviewer(preferFilled(existing.getReviewer(), incoming.getReviewer()));
+        return merged;
+    }
+
+    private String buildMergedCandidateText(List<String> summaries,
+                                            List<String> goals,
+                                            List<PlanTaskDto> tasks,
+                                            List<String> risks,
+                                            List<String> questions) {
+        StringBuilder merged = new StringBuilder();
+        appendSection(merged, "Summary candidates", summaries);
+        appendSection(merged, "Goal candidates", goals);
+        appendTaskSection(merged, tasks);
+        appendSection(merged, "Risk candidates", risks);
+        appendSection(merged, "Question candidates", questions);
+        return merged.toString().trim();
+    }
+
+    private void appendSection(StringBuilder builder, String title, List<String> items) {
+        builder.append(title).append(":\n");
+        if (items == null || items.isEmpty()) {
+            builder.append("- None\n\n");
+            return;
+        }
+        for (String item : items) {
+            builder.append("- ").append(item).append("\n");
+        }
+        builder.append("\n");
+    }
+
+    private void appendTaskSection(StringBuilder builder, List<PlanTaskDto> tasks) {
+        builder.append("Task candidates:\n");
+        if (tasks == null || tasks.isEmpty()) {
+            builder.append("- None\n\n");
+            return;
+        }
+        for (PlanTaskDto task : tasks) {
+            builder.append("- ")
+                    .append('[').append(task.getPriority()).append("] ")
+                    .append('[').append(task.getStatus()).append("] ")
+                    .append(task.getTask())
+                    .append(" | dueDate: ").append(orTbd(task.getDueDate()))
+                    .append(" | completedAt: ").append(orTbd(task.getCompletedAt()))
+                    .append(" | owner: ").append(orTbd(task.getOwner()))
+                    .append(" | reviewer: ").append(orTbd(task.getReviewer()))
+                    .append("\n");
+        }
+        builder.append("\n");
     }
 
     private String normalizeWhitespace(String text) {
@@ -401,64 +558,101 @@ public class OpenAiPlanningService {
         return text.length() <= MAX_FINAL_INPUT_CHARS ? text : text.substring(0, MAX_FINAL_INPUT_CHARS);
     }
 
-    private String chunkSummaryInstructions(DocumentType documentType, int chunkNumber, int totalChunks) {
-        return """
-                You are analyzing one chunk of a larger business document.
-                Produce a concise chunk summary for later aggregation.
-                Do not return JSON.
-                Capture only document-grounded facts from this chunk.
-                Keep it compact and scannable.
-                Write the chunk summary itself in Korean. Use Korean section headers corresponding to summary, goals, tasks, risks, and questions.
-                Limit each section to the most important items only and merge very similar points.
-                For tasks, note any explicit or strongly implied priority, status, due date, completion date, owner, and reviewer.
-                If a field is not supported by the text, say null or TBD.
-                This is chunk %d of %d for a %s document.
-                """.formatted(chunkNumber, totalChunks, documentType.name());
-    }
-
     private String summaryCompressionInstructions(DocumentType documentType) {
         return """
-                You are compressing aggregated business-document notes for a later structured planning step.
+                You are compressing merged business-document candidates for a later structured planning step.
                 Do not return JSON.
                 Write in Korean.
                 Keep only the most important facts needed for execution planning.
+                Preserve high-priority tasks, deadlines, owners, reviewers, and major risks when present.
                 Merge duplicates aggressively.
                 Limit the output to five short sections: summary, goals, tasks, risks, questions.
-                For tasks, keep only the highest-priority actions and include owner, reviewer, due date, status, or TBD/null when grounded details are missing.
                 Prefer short bullet-like phrases over sentences.
                 Keep the output under 5,500 characters.
                 The document type is %s.
                 """.formatted(documentType.name());
     }
 
-    private String summaryCompressionPrompt(DocumentType documentType,
-                                            String originalFileName,
-                                            String combinedSummary) {
-        return """
-                Uploaded document metadata:
-
-                - Document type: %s
-                - Original file name: %s
-
-                Aggregated chunk summaries:
-                %s
-                """.formatted(documentType.name(), originalFileName, combinedSummary);
+    private String normalizeCandidate(String value) {
+        return StringUtils.hasText(value) ? value.trim().replaceAll("\\s+", " ") : null;
     }
 
-    private String chunkUserPrompt(DocumentType documentType,
-                                   String originalFileName,
-                                   String chunkText,
-                                   int chunkNumber,
-                                   int totalChunks) {
-        return """
-                Uploaded document metadata:
+    private String normalizeKey(String value) {
+        String normalized = normalizeCandidate(value);
+        if (normalized == null) {
+            return "";
+        }
+        return normalized.toLowerCase(Locale.ROOT)
+                .replaceAll("[\\p{Punct}]", "")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
 
-                - Document type: %s
-                - Original file name: %s
-                - Chunk: %d of %d
+    private String normalizePriority(String priority) {
+        String normalized = StringUtils.hasText(priority) ? priority.trim().toUpperCase(Locale.ROOT) : "MEDIUM";
+        return switch (normalized) {
+            case "HIGH", "MEDIUM", "LOW" -> normalized;
+            default -> "MEDIUM";
+        };
+    }
 
-                Chunk text:
-                %s
-                """.formatted(documentType.name(), originalFileName, chunkNumber, totalChunks, chunkText);
+    private String normalizeStatus(String status) {
+        String normalized = StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "NOT_STARTED";
+        return switch (normalized) {
+            case "NOT_STARTED", "IN_PROGRESS", "COMPLETED" -> normalized;
+            default -> "NOT_STARTED";
+        };
+    }
+
+    private String preferPriority(String left, String right) {
+        return priorityRank(right) > priorityRank(left) ? right : left;
+    }
+
+    private int priorityRank(String priority) {
+        return switch (normalizePriority(priority)) {
+            case "HIGH" -> 3;
+            case "MEDIUM" -> 2;
+            default -> 1;
+        };
+    }
+
+    private String preferStatus(String left, String right) {
+        return statusRank(right) > statusRank(left) ? right : left;
+    }
+
+    private int statusRank(String status) {
+        return switch (normalizeStatus(status)) {
+            case "COMPLETED" -> 3;
+            case "IN_PROGRESS" -> 2;
+            default -> 1;
+        };
+    }
+
+    private String preferFilled(String left, String right) {
+        if (StringUtils.hasText(left) && !"TBD".equalsIgnoreCase(left)) {
+            return left.trim();
+        }
+        if (StringUtils.hasText(right)) {
+            return right.trim();
+        }
+        return left == null ? null : left.trim();
+    }
+
+    private String preferLonger(String left, String right) {
+        if (!StringUtils.hasText(left)) {
+            return right;
+        }
+        if (!StringUtils.hasText(right)) {
+            return left;
+        }
+        return right.trim().length() > left.trim().length() ? right.trim() : left.trim();
+    }
+
+    private String trimOrNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String orTbd(String value) {
+        return StringUtils.hasText(value) ? value : "TBD";
     }
 }
