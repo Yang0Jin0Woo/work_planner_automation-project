@@ -34,7 +34,9 @@ public final class PromptFactory {
                 The input may already contain merged task, risk, goal, and question candidates from chunk-level extraction.
                 The source may also include separate sections for body text, table text, and image or diagram metadata.
                 Preserve high-signal details from those candidates instead of discarding them.
-                When table text is present, prioritize deadlines, owners, statuses, and other structured fields found in rows and columns.
+                When table text is present, prioritize deadlines, owners, statuses, amounts, and other structured fields found in rows and columns.
+                Table sections may include both raw rows and normalized 'Structured row' entries; prefer the structured entries when they are available.
+                When page or slide titles are present, use them to keep context tied to the correct section.
                 When visual metadata is present, use it as supporting context but do not invent image details that are not explicitly provided.
                 """;
 
@@ -80,7 +82,9 @@ public final class PromptFactory {
                 Keep items concise and scannable.
                 Merge very similar points inside this chunk.
                 The chunk may contain body text, table text, and image or diagram metadata.
-                Use table rows and columns carefully when they provide dates, owners, statuses, or comparison points.
+                The chunk is usually already grouped by page, slide, or section boundaries. Preserve that local context.
+                Use table rows and columns carefully when they provide dates, owners, statuses, amounts, or comparison points.
+                Structured table rows are higher priority than raw row text when both are present.
                 Treat image or diagram metadata only as supporting hints unless explicit textual content is provided.
                 For tasks, note any explicit or strongly implied priority, status, due date, completion date, owner, and reviewer.
                 Use NOT_STARTED when the text does not justify that the task is already underway or completed.

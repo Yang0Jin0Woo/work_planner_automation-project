@@ -45,8 +45,6 @@ public class OpenAiPlanningService {
     }
 
     private static final int CHUNK_SIZE = 9_000;
-    private static final int CHUNK_OVERLAP = 1_000;
-    private static final int MAX_CHUNKS = 8;
     private static final int MAX_FINAL_INPUT_CHARS = 18_000;
     private static final int CHUNK_ANALYSIS_OUTPUT_TOKENS = 900;
     private static final int SUMMARY_COMPRESSION_OUTPUT_TOKENS = 500;
@@ -375,30 +373,116 @@ public class OpenAiPlanningService {
             return List.of();
         }
 
+        List<String> logicalUnits = splitIntoLogicalUnits(normalized);
+        if (logicalUnits.isEmpty()) {
+            return List.of(normalized);
+        }
+        return packLogicalUnits(logicalUnits);
+    }
+
+    private List<String> splitIntoLogicalUnits(String text) {
+        List<String> units = new ArrayList<>();
+        for (String block : text.split("\\n\\n")) {
+            String normalizedBlock = normalizeWhitespace(block);
+            if (StringUtils.hasText(normalizedBlock)) {
+                units.add(normalizedBlock);
+            }
+        }
+        return units;
+    }
+
+    private List<String> packLogicalUnits(List<String> logicalUnits) {
         List<String> chunks = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+
+        for (String unit : logicalUnits) {
+            if (unit.length() > CHUNK_SIZE) {
+                flushChunk(chunks, current);
+                chunks.addAll(splitOversizedUnit(unit));
+                continue;
+            }
+
+            if (current.isEmpty()) {
+                current.append(unit);
+                continue;
+            }
+
+            if (current.length() + 2 + unit.length() <= CHUNK_SIZE) {
+                current.append("\n\n").append(unit);
+                continue;
+            }
+
+            flushChunk(chunks, current);
+            current.append(unit);
+        }
+
+        flushChunk(chunks, current);
+        return chunks;
+    }
+
+    private List<String> splitOversizedUnit(String unit) {
+        List<String> chunks = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+
+        for (String line : unit.split("\\n")) {
+            String normalizedLine = normalizeWhitespace(line);
+            if (!StringUtils.hasText(normalizedLine)) {
+                continue;
+            }
+
+            if (normalizedLine.length() > CHUNK_SIZE) {
+                flushChunk(chunks, current);
+                chunks.addAll(splitLongLine(normalizedLine));
+                continue;
+            }
+
+            if (current.isEmpty()) {
+                current.append(normalizedLine);
+                continue;
+            }
+
+            if (current.length() + 1 + normalizedLine.length() <= CHUNK_SIZE) {
+                current.append("\n").append(normalizedLine);
+            } else {
+                flushChunk(chunks, current);
+                current.append(normalizedLine);
+            }
+        }
+
+        flushChunk(chunks, current);
+        return chunks;
+    }
+
+    private List<String> splitLongLine(String line) {
+        List<String> parts = new ArrayList<>();
         int start = 0;
-        while (start < normalized.length() && chunks.size() < MAX_CHUNKS) {
-            int end = Math.min(start + CHUNK_SIZE, normalized.length());
-            if (end < normalized.length()) {
-                int splitPoint = findSplitPoint(normalized, start, end);
+        while (start < line.length()) {
+            int end = Math.min(start + CHUNK_SIZE, line.length());
+            if (end < line.length()) {
+                int splitPoint = findSplitPoint(line, start, end);
                 if (splitPoint > start) {
                     end = splitPoint;
                 }
             }
-            chunks.add(normalized.substring(start, end).trim());
-            if (end >= normalized.length()) {
-                break;
-            }
-            start = Math.max(end - CHUNK_OVERLAP, start + 1);
+            parts.add(line.substring(start, end).trim());
+            start = end;
         }
-        return chunks;
+        return parts;
+    }
+
+    private void flushChunk(List<String> chunks, StringBuilder current) {
+        if (current.isEmpty()) {
+            return;
+        }
+        chunks.add(current.toString().trim());
+        current.setLength(0);
     }
 
     private int findSplitPoint(String text, int start, int end) {
         int minIndex = Math.min(end - 1, start + (CHUNK_SIZE / 2));
         for (int index = end - 1; index >= minIndex; index--) {
             char current = text.charAt(index);
-            if (current == '\n' || current == '.' || current == '!' || current == '?') {
+            if (current == '\n' || current == '.' || current == '!' || current == '?' || current == ':' || current == ';') {
                 return index + 1;
             }
         }

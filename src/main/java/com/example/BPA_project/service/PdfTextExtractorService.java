@@ -19,6 +19,7 @@ import org.springframework.util.StringUtils;
 public class PdfTextExtractorService implements DocumentTextExtractor {
 
     private static final Pattern TABLE_LINE_PATTERN = Pattern.compile(".*(\\t| {2,}|\\|).*");
+    private static final Pattern TITLE_PATTERN = Pattern.compile("^[A-Z0-9][A-Z0-9\\s\\-_/()]{2,80}$");
 
     @Override
     public boolean supports(String extension) {
@@ -38,11 +39,19 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
                 stripper.setStartPage(pageNumber);
                 stripper.setEndPage(pageNumber);
                 String pageText = normalize(stripper.getText(document));
-                splitPageText(pageText, pageNumber, bodySections, tableSections);
+                PageExtraction pageExtraction = splitPageText(pageText);
+                String pageHeading = detectPageHeading(pageExtraction.bodyLines, pageExtraction.tableLines);
+
+                if (!pageExtraction.bodyLines.isEmpty()) {
+                    bodySections.add(buildSection("Page", pageNumber, pageHeading, pageExtraction.bodyLines));
+                }
+                if (!pageExtraction.tableLines.isEmpty()) {
+                    tableSections.add(buildTableSection(pageNumber, pageHeading, pageExtraction.tableLines));
+                }
 
                 int imageCount = countImages(document.getPage(pageIndex).getResources());
                 if (imageCount > 0) {
-                    visualSections.add("Page " + pageNumber + ": detected " + imageCount + " image object(s). Embedded image text or diagram meaning may require OCR or vision analysis.");
+                    visualSections.add(buildVisualSection(pageNumber, pageHeading, imageCount));
                 }
             }
 
@@ -60,34 +69,125 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
         }
     }
 
-    private void splitPageText(String pageText,
-                               int pageNumber,
-                               List<String> bodySections,
-                               List<String> tableSections) {
+    private PageExtraction splitPageText(String pageText) {
+        PageExtraction extraction = new PageExtraction();
         if (!StringUtils.hasText(pageText)) {
-            return;
+            return extraction;
         }
 
-        List<String> bodyLines = new ArrayList<>();
-        List<String> tableLines = new ArrayList<>();
         for (String rawLine : pageText.split("\\n")) {
             String line = normalize(rawLine);
             if (!StringUtils.hasText(line)) {
                 continue;
             }
             if (looksLikeTableRow(line)) {
-                tableLines.add(line);
+                extraction.tableLines.add(line);
             } else {
-                bodyLines.add(line);
+                extraction.bodyLines.add(line);
             }
         }
+        return extraction;
+    }
 
-        if (!bodyLines.isEmpty()) {
-            bodySections.add("Page " + pageNumber + "\n" + String.join("\n", bodyLines));
+    private String buildSection(String label, int number, String heading, List<String> lines) {
+        StringBuilder section = new StringBuilder();
+        section.append(label).append(' ').append(number);
+        if (StringUtils.hasText(heading)) {
+            section.append(" | title: ").append(heading);
+        }
+        section.append("\n").append(String.join("\n", lines));
+        return section.toString();
+    }
+
+    private String buildTableSection(int pageNumber, String heading, List<String> tableLines) {
+        List<String> content = new ArrayList<>();
+        content.addAll(tableLines);
+        content.addAll(buildStructuredTableRows(tableLines));
+        return buildSection("Page", pageNumber, heading, content);
+    }
+
+    private List<String> buildStructuredTableRows(List<String> tableLines) {
+        List<String> structuredRows = new ArrayList<>();
+        if (tableLines.size() < 2) {
+            return structuredRows;
+        }
+
+        List<String> headers = splitColumns(tableLines.get(0));
+        if (headers.size() < 2) {
+            return structuredRows;
+        }
+
+        for (int rowIndex = 1; rowIndex < tableLines.size(); rowIndex++) {
+            List<String> values = splitColumns(tableLines.get(rowIndex));
+            if (values.size() != headers.size()) {
+                continue;
+            }
+            List<String> pairs = new ArrayList<>();
+            for (int columnIndex = 0; columnIndex < headers.size(); columnIndex++) {
+                String header = normalize(headers.get(columnIndex));
+                String value = normalize(values.get(columnIndex));
+                if (!StringUtils.hasText(header) || !StringUtils.hasText(value) || "-".equals(value)) {
+                    continue;
+                }
+                pairs.add(header + "=" + value);
+            }
+            if (!pairs.isEmpty()) {
+                structuredRows.add("Structured row: " + String.join(", ", pairs));
+            }
+        }
+        return structuredRows;
+    }
+
+    private List<String> splitColumns(String line) {
+        if (line.contains("|")) {
+            return normalizeParts(line.split("\\|"));
+        }
+        if (line.contains("\t")) {
+            return normalizeParts(line.split("\\t+"));
+        }
+        return normalizeParts(line.split(" {2,}"));
+    }
+
+    private List<String> normalizeParts(String[] parts) {
+        List<String> normalized = new ArrayList<>();
+        for (String part : parts) {
+            normalized.add(normalize(part));
+        }
+        return normalized;
+    }
+
+    private String buildVisualSection(int pageNumber, String heading, int imageCount) {
+        StringBuilder visual = new StringBuilder();
+        visual.append("Page ").append(pageNumber);
+        if (StringUtils.hasText(heading)) {
+            visual.append(" | title: ").append(heading);
+        }
+        visual.append("\n");
+        visual.append("Detected ").append(imageCount).append(" image object(s). ");
+        visual.append("Embedded image text or diagram meaning may require OCR or vision analysis.");
+        return visual.toString();
+    }
+
+    private String detectPageHeading(List<String> bodyLines, List<String> tableLines) {
+        for (String line : bodyLines) {
+            if (isLikelyHeading(line)) {
+                return line;
+            }
         }
         if (!tableLines.isEmpty()) {
-            tableSections.add("Page " + pageNumber + "\n" + String.join("\n", tableLines));
+            List<String> headers = splitColumns(tableLines.get(0));
+            if (!headers.isEmpty()) {
+                return String.join(" / ", headers);
+            }
         }
+        return null;
+    }
+
+    private boolean isLikelyHeading(String line) {
+        return StringUtils.hasText(line)
+                && line.length() <= 80
+                && !line.contains("|")
+                && TITLE_PATTERN.matcher(line).matches();
     }
 
     private boolean looksLikeTableRow(String line) {
@@ -116,6 +216,15 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
     }
 
     private String normalize(String value) {
-        return value == null ? null : value.replace("\r\n", "\n").replace('\r', '\n').trim();
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.replace("\r\n", "\n").replace('\r', '\n').trim();
+        return StringUtils.hasText(normalized) ? normalized : null;
+    }
+
+    private static class PageExtraction {
+        private final List<String> bodyLines = new ArrayList<>();
+        private final List<String> tableLines = new ArrayList<>();
     }
 }

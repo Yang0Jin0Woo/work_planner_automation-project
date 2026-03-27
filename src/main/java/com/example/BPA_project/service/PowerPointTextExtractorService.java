@@ -36,15 +36,16 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
             for (Slide<?, ?> slide : slideShow.getSlides()) {
                 SlideExtraction slideExtraction = new SlideExtraction();
                 collectShapes(slide.getShapes(), slideExtraction);
+                String slideTitle = detectSlideTitle(slideExtraction.bodyLines, slideExtraction.tableLines);
 
                 if (!slideExtraction.bodyLines.isEmpty()) {
-                    bodySections.add("Slide " + slideNumber + "\n" + String.join("\n", slideExtraction.bodyLines));
+                    bodySections.add(buildSection(slideNumber, slideTitle, slideExtraction.bodyLines));
                 }
                 if (!slideExtraction.tableLines.isEmpty()) {
-                    tableSections.add("Slide " + slideNumber + "\n" + String.join("\n", slideExtraction.tableLines));
+                    tableSections.add(buildTableSection(slideNumber, slideTitle, slideExtraction.tableLines));
                 }
                 if (!slideExtraction.visualLines.isEmpty()) {
-                    visualSections.add("Slide " + slideNumber + "\n" + String.join("\n", slideExtraction.visualLines));
+                    visualSections.add(buildVisualSection(slideNumber, slideTitle, slideExtraction.visualLines));
                 }
                 slideNumber++;
             }
@@ -103,6 +104,27 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
         }
     }
 
+    private String buildSection(int slideNumber, String slideTitle, List<String> lines) {
+        StringBuilder section = new StringBuilder();
+        section.append("Slide ").append(slideNumber);
+        if (StringUtils.hasText(slideTitle)) {
+            section.append(" | title: ").append(slideTitle);
+        }
+        section.append("\n").append(String.join("\n", lines));
+        return section.toString();
+    }
+
+    private String buildTableSection(int slideNumber, String slideTitle, List<String> tableLines) {
+        List<String> content = new ArrayList<>();
+        content.addAll(tableLines);
+        content.addAll(buildStructuredTableRows(tableLines));
+        return buildSection(slideNumber, slideTitle, content);
+    }
+
+    private String buildVisualSection(int slideNumber, String slideTitle, List<String> visualLines) {
+        return buildSection(slideNumber, slideTitle, visualLines);
+    }
+
     private void extractTable(TableShape<?, ?> tableShape, List<String> tableLines) {
         int rowCount = tableShape.getNumberOfRows();
         for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
@@ -117,6 +139,62 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
         }
     }
 
+    private List<String> buildStructuredTableRows(List<String> tableLines) {
+        List<String> structuredRows = new ArrayList<>();
+        if (tableLines.size() < 2) {
+            return structuredRows;
+        }
+
+        List<String> headers = splitColumns(tableLines.get(0));
+        if (headers.size() < 2) {
+            return structuredRows;
+        }
+
+        for (int rowIndex = 1; rowIndex < tableLines.size(); rowIndex++) {
+            List<String> values = splitColumns(tableLines.get(rowIndex));
+            if (values.size() != headers.size()) {
+                continue;
+            }
+            List<String> pairs = new ArrayList<>();
+            for (int columnIndex = 0; columnIndex < headers.size(); columnIndex++) {
+                String header = normalize(headers.get(columnIndex));
+                String value = normalize(values.get(columnIndex));
+                if (!StringUtils.hasText(header) || !StringUtils.hasText(value) || "-".equals(value)) {
+                    continue;
+                }
+                pairs.add(header + "=" + value);
+            }
+            if (!pairs.isEmpty()) {
+                structuredRows.add("Structured row: " + String.join(", ", pairs));
+            }
+        }
+        return structuredRows;
+    }
+
+    private List<String> splitColumns(String line) {
+        String[] parts = line.split("\\|");
+        List<String> normalized = new ArrayList<>();
+        for (String part : parts) {
+            normalized.add(normalize(part));
+        }
+        return normalized;
+    }
+
+    private String detectSlideTitle(List<String> bodyLines, List<String> tableLines) {
+        for (String line : bodyLines) {
+            if (StringUtils.hasText(line) && line.length() <= 120) {
+                return line;
+            }
+        }
+        if (!tableLines.isEmpty()) {
+            List<String> headers = splitColumns(tableLines.get(0));
+            if (!headers.isEmpty()) {
+                return String.join(" / ", headers);
+            }
+        }
+        return null;
+    }
+
     private String buildVisualNote(String kind, String shapeName) {
         if (!StringUtils.hasText(shapeName)) {
             return kind + " detected";
@@ -129,7 +207,11 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
     }
 
     private String normalize(String value) {
-        return value == null ? null : value.replace("\r\n", "\n").replace('\r', '\n').trim();
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.replace("\r\n", "\n").replace('\r', '\n').trim();
+        return StringUtils.hasText(normalized) ? normalized : null;
     }
 
     private static class SlideExtraction {
