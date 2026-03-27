@@ -47,6 +47,17 @@
         </div>
     </section>
 
+    <section class="meta-card" th:if="${analysisSession.visualAnalysisStatus}">
+        <div>
+            <strong>시각 자료 상태</strong>
+            <span th:text="${analysisSession.visualAnalysisStatus}">자료 없음</span>
+        </div>
+        <div>
+            <strong>검토 메모</strong>
+            <span th:text="${analysisSession.visualAnalysisNote}">추가 확인이 필요합니다.</span>
+        </div>
+    </section>
+
     <section class="usage-card">
         <div>
             <strong>사용 목적</strong>

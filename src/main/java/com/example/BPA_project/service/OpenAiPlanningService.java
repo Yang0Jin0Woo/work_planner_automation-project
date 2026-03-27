@@ -70,15 +70,36 @@ public class OpenAiPlanningService {
         this.restTemplate = restTemplateBuilder.build();
     }
 
-    public String prepareAnalysisInput(DocumentType documentType,
-                                       String originalFileName,
-                                       DocumentExtractionResult extractionResult) {
+    public AnalysisInputPreparation prepareAnalysisInput(DocumentType documentType,
+                                                      String originalFileName,
+                                                      DocumentExtractionResult extractionResult) {
         if (extractionResult == null) {
-            return "";
+            return new AnalysisInputPreparation("", "자료 없음", "이미지·차트 스냅샷이 없어 추가 시각 해석을 수행하지 않았습니다.");
+        }
+
+        int visualAssetCount = extractionResult.getVisualAssets().size();
+        if (visualAssetCount == 0) {
+            return new AnalysisInputPreparation(
+                    extractionResult.toAnalysisText(),
+                    "자료 없음",
+                    "이미지·차트 스냅샷이 없어 추가 시각 해석을 수행하지 않았습니다."
+            );
         }
 
         String visualAnalysisText = analyzeVisualAssets(documentType, originalFileName, extractionResult);
-        return extractionResult.toAnalysisText(visualAnalysisText);
+        if (StringUtils.hasText(visualAnalysisText)) {
+            return new AnalysisInputPreparation(
+                    extractionResult.toAnalysisText(visualAnalysisText),
+                    "자료 반영",
+                    "시각 자료 스냅샷 " + visualAssetCount + "건에 대해 OCR·차트 해석 결과를 분석 입력에 반영했습니다."
+            );
+        }
+
+        return new AnalysisInputPreparation(
+                extractionResult.toAnalysisText(),
+                "확인 필요",
+                "시각 자료 스냅샷은 있었지만 OCR·차트 해석 결과를 안정적으로 반영하지 못했습니다. 원문 확인이 필요합니다."
+        );
     }
 
     public AnalysisResultDto analyze(DocumentType documentType, String originalFileName, String extractedText) {

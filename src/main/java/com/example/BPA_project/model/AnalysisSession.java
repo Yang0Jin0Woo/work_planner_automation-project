@@ -12,6 +12,8 @@ public class AnalysisSession {
     private String sourceText;
     private String sourceStatus;
     private String message;
+    private String visualAnalysisStatus;
+    private String visualAnalysisNote;
     private String reportPath;
     private int analyzedChunkCount;
     private LocalDateTime createdAt;
@@ -63,6 +65,22 @@ public class AnalysisSession {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public String getVisualAnalysisStatus() {
+        return visualAnalysisStatus;
+    }
+
+    public void setVisualAnalysisStatus(String visualAnalysisStatus) {
+        this.visualAnalysisStatus = visualAnalysisStatus;
+    }
+
+    public String getVisualAnalysisNote() {
+        return visualAnalysisNote;
+    }
+
+    public void setVisualAnalysisNote(String visualAnalysisNote) {
+        this.visualAnalysisNote = visualAnalysisNote;
     }
 
     public String getReportPath() {

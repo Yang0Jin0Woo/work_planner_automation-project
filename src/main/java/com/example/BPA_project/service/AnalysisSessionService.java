@@ -23,12 +23,16 @@ public class AnalysisSessionService {
     public AnalysisSession createAnalyzedSession(StoredFileInfo fileInfo,
                                                  String sourceText,
                                                  int chunkCount,
-                                                 AnalysisResultDto resultDto) {
+                                                 AnalysisResultDto resultDto,
+                                                 String visualAnalysisStatus,
+                                                 String visualAnalysisNote) {
         AnalysisSession session = baseSession(fileInfo);
         session.setSourceText(sourceText);
         session.setAnalyzedChunkCount(chunkCount);
         session.setSourceStatus("ANALYZED");
         session.setMessage("Document analysis completed.");
+        session.setVisualAnalysisStatus(trimOrNull(visualAnalysisStatus));
+        session.setVisualAnalysisNote(trimOrNull(visualAnalysisNote));
         session.setAnalysisResult(normalize(resultDto));
         persist(session);
         return session;

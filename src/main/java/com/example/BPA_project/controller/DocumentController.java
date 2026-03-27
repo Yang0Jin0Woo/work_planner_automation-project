@@ -5,6 +5,7 @@ import com.example.BPA_project.dto.UploadForm;
 import com.example.BPA_project.exception.DocumentAnalysisException;
 import com.example.BPA_project.model.AnalysisSession;
 import com.example.BPA_project.model.StoredFileInfo;
+import com.example.BPA_project.service.AnalysisInputPreparation;
 import com.example.BPA_project.service.AnalysisSessionService;
 import com.example.BPA_project.service.DocumentExtractionResult;
 import com.example.BPA_project.service.DocumentTextExtractor;
@@ -62,11 +63,12 @@ public class DocumentController {
 
         StoredFileInfo storedFileInfo = fileStorageService.store(uploadForm.getFile());
         DocumentExtractionResult extractionResult = extractDocument(uploadForm, storedFileInfo);
-        String analysisInput = openAiPlanningService.prepareAnalysisInput(
+        AnalysisInputPreparation analysisPreparation = openAiPlanningService.prepareAnalysisInput(
                 uploadForm.getDocumentType(),
                 storedFileInfo.getOriginalFileName(),
                 extractionResult
         );
+        String analysisInput = analysisPreparation.getAnalysisText();
         int chunkCount = openAiPlanningService.estimateChunkCount(analysisInput);
         AnalysisResultDto result = openAiPlanningService.analyze(
                 uploadForm.getDocumentType(),
@@ -77,7 +79,9 @@ public class DocumentController {
                 storedFileInfo,
                 analysisInput,
                 chunkCount,
-                result
+                result,
+                analysisPreparation.getVisualStatus(),
+                analysisPreparation.getVisualNote()
         );
 
         redirectAttributes.addFlashAttribute("successMessage", "Document upload and analysis completed.");
