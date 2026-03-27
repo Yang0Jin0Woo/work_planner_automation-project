@@ -150,6 +150,10 @@ button:hover, .primary-button:hover, .secondary-button:hover {
     flex-wrap: wrap;
 }
 
+.print-button {
+    min-width: 88px;
+}
+
 .meta-card {
     padding: 20px 24px;
     margin-bottom: 18px;
@@ -296,4 +300,27 @@ button:hover, .primary-button:hover, .secondary-button:hover {
 .editor-form.editing textarea.is-editing,
 .editor-form.editing select.is-editing {
     background: #fffdfa;
+}
+
+@media print {
+    body {
+        background: #fff;
+    }
+
+    .result-shell {
+        width: 100%;
+        padding: 0;
+    }
+
+    .header-actions,
+    .alert,
+    .edit-actions {
+        display: none !important;
+    }
+
+    .panel, .meta-card, .usage-card {
+        break-inside: avoid;
+        box-shadow: none;
+        background: #fff;
+    }
 }

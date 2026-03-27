@@ -34,16 +34,6 @@ public final class PromptFactory {
                 """;
 
         String detailPrompt = switch (detailLevel) {
-            case "ULTRA_COMPACT" -> """
-                    Keep the response extremely compact.
-                    Return at most 2 goals, 3 tasks, 2 risks, and 1 question.
-                    Keep the title very short.
-                    Keep the summary to 2 short sentences.
-                    Keep scheduleDraft to 2 short sentences.
-                    Keep only the highest-priority actions.
-                    Merge similar actions aggressively.
-                    Use very short phrases for task, risk, and question text.
-                    """;
             case "COMPACT" -> """
                     Keep the response compact.
                     Return at most 2 goals, 4 tasks, 2 risks, and 2 questions.

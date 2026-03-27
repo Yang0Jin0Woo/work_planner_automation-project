@@ -36,8 +36,7 @@ public class OpenAiPlanningService {
 
     private enum DetailLevel {
         STANDARD,
-        COMPACT,
-        ULTRA_COMPACT
+        COMPACT
     }
 
     private static final int CHUNK_SIZE = 9_000;
@@ -46,9 +45,8 @@ public class OpenAiPlanningService {
     private static final int MAX_FINAL_INPUT_CHARS = 18_000;
     private static final int CHUNK_SUMMARY_OUTPUT_TOKENS = 600;
     private static final int SUMMARY_COMPRESSION_OUTPUT_TOKENS = 500;
-    private static final int STRUCTURED_RETRY_OUTPUT_TOKENS = 3_600;
-    private static final int STRUCTURED_COMPACT_RETRY_OUTPUT_TOKENS = 4_200;
-    private static final int STRUCTURED_ULTRA_COMPACT_RETRY_OUTPUT_TOKENS = 5_200;
+    private static final int STRUCTURED_RETRY_OUTPUT_TOKENS = 4_000;
+    private static final int STRUCTURED_COMPACT_RETRY_OUTPUT_TOKENS = 5_000;
     private static final int COMPACT_TRIGGER_TEXT_LENGTH = 10_000;
     private static final int COMPACT_TRIGGER_CHUNK_COUNT = 2;
     private static final int COMPACT_TRIGGER_SUMMARY_LENGTH = 7_500;
@@ -180,16 +178,6 @@ public class OpenAiPlanningService {
                     summarizedText,
                     STRUCTURED_COMPACT_RETRY_OUTPUT_TOKENS,
                     DetailLevel.COMPACT
-            ));
-        }
-
-        if (isMaxOutputTokenIncomplete(responseBody)) {
-            responseBody = sendRequest(buildStructuredPlanRequest(
-                    documentType,
-                    originalFileName,
-                    summarizedText,
-                    STRUCTURED_ULTRA_COMPACT_RETRY_OUTPUT_TOKENS,
-                    DetailLevel.ULTRA_COMPACT
             ));
         }
 

@@ -121,7 +121,6 @@ public final class JsonSchemaFactory {
                           int questionItemMaxLength) {
         private static Limits forLevel(String detailLevel) {
             return switch (detailLevel) {
-                case "ULTRA_COMPACT" -> new Limits(44, 220, 180, 2, 56, 3, 72, 2, 72, 1, 72);
                 case "COMPACT" -> new Limits(60, 320, 240, 2, 80, 4, 90, 2, 90, 2, 90);
                 default -> new Limits(100, 900, 700, 4, 140, 8, 160, 4, 160, 4, 160);
             };
