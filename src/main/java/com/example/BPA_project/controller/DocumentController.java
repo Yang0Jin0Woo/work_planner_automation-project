@@ -2,12 +2,14 @@ package com.example.BPA_project.controller;
 
 import com.example.BPA_project.dto.AnalysisResultDto;
 import com.example.BPA_project.dto.UploadForm;
+import com.example.BPA_project.exception.DocumentAnalysisException;
 import com.example.BPA_project.model.AnalysisSession;
 import com.example.BPA_project.model.StoredFileInfo;
 import com.example.BPA_project.service.AnalysisSessionService;
+import com.example.BPA_project.service.DocumentTextExtractor;
+import com.example.BPA_project.service.DocumentTextExtractorResolver;
 import com.example.BPA_project.service.FileStorageService;
 import com.example.BPA_project.service.OpenAiPlanningService;
-import com.example.BPA_project.service.PdfTextExtractorService;
 import com.example.BPA_project.util.FileNameUtils;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -26,16 +28,16 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class DocumentController {
 
     private final FileStorageService fileStorageService;
-    private final PdfTextExtractorService pdfTextExtractorService;
+    private final DocumentTextExtractorResolver documentTextExtractorResolver;
     private final OpenAiPlanningService openAiPlanningService;
     private final AnalysisSessionService analysisSessionService;
 
     public DocumentController(FileStorageService fileStorageService,
-                              PdfTextExtractorService pdfTextExtractorService,
+                              DocumentTextExtractorResolver documentTextExtractorResolver,
                               OpenAiPlanningService openAiPlanningService,
                               AnalysisSessionService analysisSessionService) {
         this.fileStorageService = fileStorageService;
-        this.pdfTextExtractorService = pdfTextExtractorService;
+        this.documentTextExtractorResolver = documentTextExtractorResolver;
         this.openAiPlanningService = openAiPlanningService;
         this.analysisSessionService = analysisSessionService;
     }
@@ -47,33 +49,32 @@ public class DocumentController {
         if (bindingResult.hasErrors() || uploadForm.getFile() == null || uploadForm.getFile().isEmpty()) {
             redirectAttributes.addFlashAttribute("org.springframework.validation.BindingResult.uploadForm", bindingResult);
             redirectAttributes.addFlashAttribute("uploadForm", uploadForm);
-            redirectAttributes.addFlashAttribute("errorMessage", "문서 유형과 파일을 확인해주세요.");
+            redirectAttributes.addFlashAttribute("errorMessage", "Check the document type and file.");
             return "redirect:/";
         }
 
         String extension = FileNameUtils.extension(uploadForm.getFile().getOriginalFilename());
         if (!extension.equals("pdf") && !extension.equals("ppt") && !extension.equals("pptx")) {
-            redirectAttributes.addFlashAttribute("errorMessage", "PDF, PPT, PPTX 파일만 업로드할 수 있습니다.");
+            redirectAttributes.addFlashAttribute("errorMessage", "Only PDF, PPT, and PPTX files can be uploaded.");
             return "redirect:/";
         }
 
         StoredFileInfo storedFileInfo = fileStorageService.store(uploadForm.getFile());
-        AnalysisSession analysisSession;
+        String sourceText = extractSourceText(uploadForm, storedFileInfo);
+        int chunkCount = openAiPlanningService.estimateChunkCount(sourceText);
+        AnalysisResultDto result = openAiPlanningService.analyze(
+                uploadForm.getDocumentType(),
+                storedFileInfo.getOriginalFileName(),
+                sourceText
+        );
+        AnalysisSession analysisSession = analysisSessionService.createAnalyzedSession(
+                storedFileInfo,
+                sourceText,
+                chunkCount,
+                result
+        );
 
-        if ("pdf".equals(storedFileInfo.getExtension())) {
-            String sourceText = extractPdfText(uploadForm);
-            int chunkCount = openAiPlanningService.estimateChunkCount(sourceText);
-            AnalysisResultDto result = openAiPlanningService.analyze(
-                    uploadForm.getDocumentType(),
-                    storedFileInfo.getOriginalFileName(),
-                    sourceText
-            );
-            analysisSession = analysisSessionService.createPdfSession(storedFileInfo, sourceText, chunkCount, result);
-        } else {
-            analysisSession = analysisSessionService.createUnsupportedSession(storedFileInfo, uploadForm.getDocumentType());
-        }
-
-        redirectAttributes.addFlashAttribute("successMessage", "문서 업로드 및 분석이 완료되었습니다.");
+        redirectAttributes.addFlashAttribute("successMessage", "Document upload and analysis completed.");
         return "redirect:/documents/" + analysisSession.getSessionId();
     }
 
@@ -90,15 +91,16 @@ public class DocumentController {
                          @ModelAttribute("result") AnalysisResultDto result,
                          RedirectAttributes redirectAttributes) {
         analysisSessionService.updateAnalysis(sessionId, result);
-        redirectAttributes.addFlashAttribute("successMessage", "수정 내용이 저장되었습니다.");
+        redirectAttributes.addFlashAttribute("successMessage", "Changes saved.");
         return "redirect:/documents/" + sessionId;
     }
 
-    private String extractPdfText(UploadForm uploadForm) {
+    private String extractSourceText(UploadForm uploadForm, StoredFileInfo storedFileInfo) {
         try {
-            return pdfTextExtractorService.extractText(uploadForm.getFile().getBytes());
+            DocumentTextExtractor extractor = documentTextExtractorResolver.resolve(storedFileInfo.getExtension());
+            return extractor.extractText(uploadForm.getFile().getBytes(), storedFileInfo.getOriginalFileName());
         } catch (IOException exception) {
-            throw new com.example.BPA_project.exception.DocumentAnalysisException("Failed to read the uploaded PDF.", exception);
+            throw new DocumentAnalysisException("Failed to read the uploaded file.", exception);
         }
     }
 }

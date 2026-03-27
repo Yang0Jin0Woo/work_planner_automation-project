@@ -1,7 +1,6 @@
 package com.example.BPA_project.service;
 
 import com.example.BPA_project.dto.AnalysisResultDto;
-import com.example.BPA_project.dto.DocumentType;
 import com.example.BPA_project.dto.PlanTaskDto;
 import com.example.BPA_project.exception.DocumentAnalysisException;
 import com.example.BPA_project.model.AnalysisSession;
@@ -22,37 +21,16 @@ public class AnalysisSessionService {
 
     private final Map<String, AnalysisSession> sessions = new ConcurrentHashMap<>();
 
-    public AnalysisSession createPdfSession(StoredFileInfo fileInfo,
-                                            String sourceText,
-                                            int chunkCount,
-                                            AnalysisResultDto resultDto) {
+    public AnalysisSession createAnalyzedSession(StoredFileInfo fileInfo,
+                                                 String sourceText,
+                                                 int chunkCount,
+                                                 AnalysisResultDto resultDto) {
         AnalysisSession session = baseSession(fileInfo);
         session.setSourceText(sourceText);
         session.setAnalyzedChunkCount(chunkCount);
         session.setSourceStatus("ANALYZED");
-        session.setMessage("PDF 분석이 완료되었습니다.");
+        session.setMessage("Document analysis completed.");
         session.setAnalysisResult(normalize(resultDto));
-        persist(session);
-        return session;
-    }
-
-    public AnalysisSession createUnsupportedSession(StoredFileInfo fileInfo, DocumentType documentType) {
-        AnalysisResultDto result = new AnalysisResultDto();
-        result.setDocumentType(documentType);
-        result.setTitle(fileInfo.getOriginalFileName());
-        result.setSummary("PPT 또는 PPTX 파일은 업로드만 지원되며 현재 MVP에서는 변환 없이 안내 메시지만 제공합니다.");
-        result.setScheduleDraft("슬라이드를 PDF로 변환한 뒤 다시 업로드하면 AI 실행 계획 초안을 생성할 수 있습니다.");
-        result.setGoals(List.of("PDF 전환 MVP 검증", "PPT 변환 확장 사양 정의"));
-        result.setTasks(new ArrayList<>());
-        result.setRisks(List.of("슬라이드 텍스트 추출과 변환 기능은 아직 구현되지 않았습니다."));
-        result.setQuestions(List.of("다음 버전에서 PPT/PPTX 자동 변환 지원 여부를 결정할 필요가 있습니다."));
-
-        AnalysisSession session = baseSession(fileInfo);
-        session.setSourceText("");
-        session.setAnalyzedChunkCount(0);
-        session.setSourceStatus("UPLOADED_ONLY");
-        session.setMessage("PPT 또는 PPTX 파일은 업로드만 처리했습니다. 분석하려면 PDF로 변환 후 다시 업로드해주세요.");
-        session.setAnalysisResult(result);
         persist(session);
         return session;
     }
@@ -60,7 +38,7 @@ public class AnalysisSessionService {
     public AnalysisSession getSession(String sessionId) {
         AnalysisSession session = sessions.get(sessionId);
         if (session == null) {
-            throw new DocumentAnalysisException("분석 세션을 찾을 수 없습니다. 서버 재시작 후에는 이전 결과가 유지되지 않습니다.");
+            throw new DocumentAnalysisException("Analysis session was not found. Results are kept in memory only.");
         }
         return session;
     }
@@ -89,13 +67,13 @@ public class AnalysisSessionService {
     private AnalysisResultDto normalize(AnalysisResultDto dto) {
         AnalysisResultDto normalized = new AnalysisResultDto();
         normalized.setDocumentType(dto.getDocumentType());
-        normalized.setTitle(trimToDefault(dto.getTitle(), "제목 없음"));
-        normalized.setSummary(trimToDefault(dto.getSummary(), "요약 정보가 없습니다."));
-        normalized.setScheduleDraft(trimToDefault(dto.getScheduleDraft(), "일정 초안 정보가 없습니다."));
-        normalized.setGoals(normalizeStrings(dto.getGoals(), "목표 정보가 없습니다."));
+        normalized.setTitle(trimToDefault(dto.getTitle(), "Untitled"));
+        normalized.setSummary(trimToDefault(dto.getSummary(), "No summary available."));
+        normalized.setScheduleDraft(trimToDefault(dto.getScheduleDraft(), "No schedule draft available."));
+        normalized.setGoals(normalizeStrings(dto.getGoals(), "No goals available."));
         normalized.setTasks(normalizeTasks(dto.getTasks()));
-        normalized.setRisks(normalizeStrings(dto.getRisks(), "리스크 정보가 없습니다."));
-        normalized.setQuestions(normalizeStrings(dto.getQuestions(), "추가 확인 필요 항목이 없습니다."));
+        normalized.setRisks(normalizeStrings(dto.getRisks(), "No risks available."));
+        normalized.setQuestions(normalizeStrings(dto.getQuestions(), "No follow-up questions."));
         return normalized;
     }
 

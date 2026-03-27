@@ -8,10 +8,16 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
 
 @Service
-public class PdfTextExtractorService {
+public class PdfTextExtractorService implements DocumentTextExtractor {
 
-    public String extractText(byte[] pdfBytes) {
-        try (PDDocument document = Loader.loadPDF(pdfBytes)) {
+    @Override
+    public boolean supports(String extension) {
+        return "pdf".equals(extension);
+    }
+
+    @Override
+    public String extractText(byte[] fileBytes, String originalFileName) {
+        try (PDDocument document = Loader.loadPDF(fileBytes)) {
             PDFTextStripper stripper = new PDFTextStripper();
             String text = stripper.getText(document);
             if (text == null || text.isBlank()) {

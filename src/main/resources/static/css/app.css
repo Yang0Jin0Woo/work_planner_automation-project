@@ -225,6 +225,43 @@ button:hover, .primary-button:hover, .secondary-button:hover {
     border: 1px solid;
 }
 
+.alert-dismissible {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.alert-close {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid rgba(23, 33, 43, 0.12);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: none;
+    color: #51606c;
+}
+
+.alert-close span {
+    display: block;
+    font-size: 1rem;
+    line-height: 1;
+    font-weight: 700;
+    transform: rotate(45deg);
+}
+
+.alert-close:hover {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(23, 33, 43, 0.2);
+}
+
+.alert-close:focus-visible {
+    outline: 2px solid rgba(111, 71, 16, 0.28);
+    outline-offset: 2px;
+}
+
 .alert.success { background: var(--success); border-color: var(--success-line); }
 .alert.error { background: var(--error); border-color: var(--error-line); }
 .alert.info { background: var(--info); border-color: var(--info-line); }
