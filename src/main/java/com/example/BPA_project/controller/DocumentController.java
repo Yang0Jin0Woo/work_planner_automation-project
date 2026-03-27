@@ -6,6 +6,7 @@ import com.example.BPA_project.exception.DocumentAnalysisException;
 import com.example.BPA_project.model.AnalysisSession;
 import com.example.BPA_project.model.StoredFileInfo;
 import com.example.BPA_project.service.AnalysisSessionService;
+import com.example.BPA_project.service.DocumentExtractionResult;
 import com.example.BPA_project.service.DocumentTextExtractor;
 import com.example.BPA_project.service.DocumentTextExtractorResolver;
 import com.example.BPA_project.service.FileStorageService;
@@ -60,16 +61,17 @@ public class DocumentController {
         }
 
         StoredFileInfo storedFileInfo = fileStorageService.store(uploadForm.getFile());
-        String sourceText = extractSourceText(uploadForm, storedFileInfo);
-        int chunkCount = openAiPlanningService.estimateChunkCount(sourceText);
+        DocumentExtractionResult extractionResult = extractDocument(uploadForm, storedFileInfo);
+        String analysisInput = extractionResult.toAnalysisText();
+        int chunkCount = openAiPlanningService.estimateChunkCount(analysisInput);
         AnalysisResultDto result = openAiPlanningService.analyze(
                 uploadForm.getDocumentType(),
                 storedFileInfo.getOriginalFileName(),
-                sourceText
+                analysisInput
         );
         AnalysisSession analysisSession = analysisSessionService.createAnalyzedSession(
                 storedFileInfo,
-                sourceText,
+                analysisInput,
                 chunkCount,
                 result
         );
@@ -95,10 +97,10 @@ public class DocumentController {
         return "redirect:/documents/" + sessionId;
     }
 
-    private String extractSourceText(UploadForm uploadForm, StoredFileInfo storedFileInfo) {
+    private DocumentExtractionResult extractDocument(UploadForm uploadForm, StoredFileInfo storedFileInfo) {
         try {
             DocumentTextExtractor extractor = documentTextExtractorResolver.resolve(storedFileInfo.getExtension());
-            return extractor.extractText(uploadForm.getFile().getBytes(), storedFileInfo.getOriginalFileName());
+            return extractor.extract(uploadForm.getFile().getBytes(), storedFileInfo.getOriginalFileName());
         } catch (IOException exception) {
             throw new DocumentAnalysisException("Failed to read the uploaded file.", exception);
         }

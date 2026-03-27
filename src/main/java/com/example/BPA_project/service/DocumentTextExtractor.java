@@ -4,5 +4,9 @@ public interface DocumentTextExtractor {
 
     boolean supports(String extension);
 
-    String extractText(byte[] fileBytes, String originalFileName);
+    DocumentExtractionResult extract(byte[] fileBytes, String originalFileName);
+
+    default String extractText(byte[] fileBytes, String originalFileName) {
+        return extract(fileBytes, originalFileName).toAnalysisText();
+    }
 }

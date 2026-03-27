@@ -32,7 +32,10 @@ public final class PromptFactory {
                 Prefer concise phrases over long sentences.
                 Use short noun phrases where possible.
                 The input may already contain merged task, risk, goal, and question candidates from chunk-level extraction.
+                The source may also include separate sections for body text, table text, and image or diagram metadata.
                 Preserve high-signal details from those candidates instead of discarding them.
+                When table text is present, prioritize deadlines, owners, statuses, and other structured fields found in rows and columns.
+                When visual metadata is present, use it as supporting context but do not invent image details that are not explicitly provided.
                 """;
 
         String detailPrompt = switch (detailLevel) {
@@ -76,6 +79,9 @@ public final class PromptFactory {
                 Write all user-facing content in Korean.
                 Keep items concise and scannable.
                 Merge very similar points inside this chunk.
+                The chunk may contain body text, table text, and image or diagram metadata.
+                Use table rows and columns carefully when they provide dates, owners, statuses, or comparison points.
+                Treat image or diagram metadata only as supporting hints unless explicit textual content is provided.
                 For tasks, note any explicit or strongly implied priority, status, due date, completion date, owner, and reviewer.
                 Use NOT_STARTED when the text does not justify that the task is already underway or completed.
                 Use null or 'TBD' when the chunk does not justify a concrete owner, reviewer, or date.
