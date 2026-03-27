@@ -29,13 +29,30 @@ import org.springframework.web.client.RestTemplate;
 @Service
 public class OpenAiPlanningService {
 
+    private enum AnalysisMode {
+        STANDARD,
+        COMPACT
+    }
+
+    private enum DetailLevel {
+        STANDARD,
+        COMPACT,
+        ULTRA_COMPACT
+    }
+
     private static final int CHUNK_SIZE = 9_000;
     private static final int CHUNK_OVERLAP = 1_000;
     private static final int MAX_CHUNKS = 8;
     private static final int MAX_FINAL_INPUT_CHARS = 18_000;
     private static final int CHUNK_SUMMARY_OUTPUT_TOKENS = 600;
+    private static final int SUMMARY_COMPRESSION_OUTPUT_TOKENS = 500;
     private static final int STRUCTURED_RETRY_OUTPUT_TOKENS = 3_600;
     private static final int STRUCTURED_COMPACT_RETRY_OUTPUT_TOKENS = 4_200;
+    private static final int STRUCTURED_ULTRA_COMPACT_RETRY_OUTPUT_TOKENS = 5_200;
+    private static final int COMPACT_TRIGGER_TEXT_LENGTH = 10_000;
+    private static final int COMPACT_TRIGGER_CHUNK_COUNT = 2;
+    private static final int COMPACT_TRIGGER_SUMMARY_LENGTH = 7_500;
+    private static final int COMPRESSED_SUMMARY_TARGET_CHARS = 5_500;
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
@@ -66,7 +83,9 @@ public class OpenAiPlanningService {
             }
 
             String combinedSummary = combineChunkSummaries(chunkSummaries);
-            return requestStructuredPlan(documentType, originalFileName, combinedSummary);
+            AnalysisMode analysisMode = chooseAnalysisMode(extractedText, chunks.size(), combinedSummary);
+            String finalSummary = prepareStructuredInput(documentType, originalFileName, combinedSummary, analysisMode);
+            return requestStructuredPlan(documentType, originalFileName, finalSummary, analysisMode);
         } catch (JsonProcessingException exception) {
             throw new DocumentAnalysisException("Failed to build the OpenAI request JSON.", exception);
         } catch (HttpStatusCodeException exception) {
@@ -101,19 +120,56 @@ public class OpenAiPlanningService {
         return parseTextResponse(sendRequest(requestBody));
     }
 
+    private String prepareStructuredInput(DocumentType documentType,
+                                          String originalFileName,
+                                          String combinedSummary,
+                                          AnalysisMode analysisMode) throws JsonProcessingException {
+        if (analysisMode != AnalysisMode.COMPACT && combinedSummary.length() <= COMPRESSED_SUMMARY_TARGET_CHARS) {
+            return combinedSummary;
+        }
+        return compressSummary(documentType, originalFileName, combinedSummary);
+    }
+
+    private String compressSummary(DocumentType documentType,
+                                   String originalFileName,
+                                   String combinedSummary) throws JsonProcessingException {
+        ObjectNode requestBody = baseRequestBody(SUMMARY_COMPRESSION_OUTPUT_TOKENS);
+        requestBody.put("instructions", summaryCompressionInstructions(documentType));
+
+        ArrayNode input = requestBody.putArray("input");
+        ObjectNode userMessage = input.addObject();
+        userMessage.put("role", "user");
+        ArrayNode content = userMessage.putArray("content");
+        content.addObject()
+                .put("type", "input_text")
+                .put("text", summaryCompressionPrompt(documentType, originalFileName, truncateForFinalStep(combinedSummary)));
+
+        return parseTextResponse(sendRequest(requestBody));
+    }
+
     private AnalysisResultDto requestStructuredPlan(DocumentType documentType,
                                                     String originalFileName,
-                                                    String summarizedText) throws JsonProcessingException {
+                                                    String summarizedText,
+                                                    AnalysisMode analysisMode) throws JsonProcessingException {
         int initialTokens = appProperties.getOpenAi().getMaxOutputTokens();
-        String responseBody = sendRequest(buildStructuredPlanRequest(documentType, originalFileName, summarizedText, initialTokens, false));
+        DetailLevel initialLevel = analysisMode == AnalysisMode.COMPACT ? DetailLevel.COMPACT : DetailLevel.STANDARD;
+        String responseBody = sendRequest(buildStructuredPlanRequest(
+                documentType,
+                originalFileName,
+                summarizedText,
+                initialTokens,
+                initialLevel
+        ));
 
-        if (isMaxOutputTokenIncomplete(responseBody) && initialTokens < STRUCTURED_RETRY_OUTPUT_TOKENS) {
+        if (isMaxOutputTokenIncomplete(responseBody)
+                && initialLevel == DetailLevel.STANDARD
+                && initialTokens < STRUCTURED_RETRY_OUTPUT_TOKENS) {
             responseBody = sendRequest(buildStructuredPlanRequest(
                     documentType,
                     originalFileName,
                     summarizedText,
                     STRUCTURED_RETRY_OUTPUT_TOKENS,
-                    false
+                    DetailLevel.STANDARD
             ));
         }
 
@@ -123,7 +179,17 @@ public class OpenAiPlanningService {
                     originalFileName,
                     summarizedText,
                     STRUCTURED_COMPACT_RETRY_OUTPUT_TOKENS,
-                    true
+                    DetailLevel.COMPACT
+            ));
+        }
+
+        if (isMaxOutputTokenIncomplete(responseBody)) {
+            responseBody = sendRequest(buildStructuredPlanRequest(
+                    documentType,
+                    originalFileName,
+                    summarizedText,
+                    STRUCTURED_ULTRA_COMPACT_RETRY_OUTPUT_TOKENS,
+                    DetailLevel.ULTRA_COMPACT
             ));
         }
 
@@ -134,9 +200,9 @@ public class OpenAiPlanningService {
                                                   String originalFileName,
                                                   String summarizedText,
                                                   int maxOutputTokens,
-                                                  boolean compactMode) {
+                                                  DetailLevel detailLevel) {
         ObjectNode requestBody = baseRequestBody(maxOutputTokens);
-        requestBody.put("instructions", PromptFactory.instructions(documentType, compactMode));
+        requestBody.put("instructions", PromptFactory.instructions(documentType, detailLevel.name()));
 
         ArrayNode input = requestBody.putArray("input");
         ObjectNode userMessage = input.addObject();
@@ -151,8 +217,20 @@ public class OpenAiPlanningService {
         format.put("type", "json_schema");
         format.put("name", "execution_plan");
         format.put("strict", true);
-        format.set("schema", JsonSchemaFactory.analysisSchema(objectMapper));
+        format.set("schema", JsonSchemaFactory.analysisSchema(objectMapper, detailLevel.name()));
         return requestBody;
+    }
+
+    private AnalysisMode chooseAnalysisMode(String extractedText, int chunkCount, String summarizedText) {
+        int textLength = extractedText == null ? 0 : extractedText.length();
+        int summaryLength = summarizedText == null ? 0 : summarizedText.length();
+
+        if (textLength >= COMPACT_TRIGGER_TEXT_LENGTH
+                || chunkCount >= COMPACT_TRIGGER_CHUNK_COUNT
+                || summaryLength >= COMPACT_TRIGGER_SUMMARY_LENGTH) {
+            return AnalysisMode.COMPACT;
+        }
+        return AnalysisMode.STANDARD;
     }
 
     private boolean isMaxOutputTokenIncomplete(String responseBody) {
@@ -348,6 +426,35 @@ public class OpenAiPlanningService {
                 If a field is not supported by the text, say null or TBD.
                 This is chunk %d of %d for a %s document.
                 """.formatted(chunkNumber, totalChunks, documentType.name());
+    }
+
+    private String summaryCompressionInstructions(DocumentType documentType) {
+        return """
+                You are compressing aggregated business-document notes for a later structured planning step.
+                Do not return JSON.
+                Write in Korean.
+                Keep only the most important facts needed for execution planning.
+                Merge duplicates aggressively.
+                Limit the output to five short sections: summary, goals, tasks, risks, questions.
+                For tasks, keep only the highest-priority actions and include owner, reviewer, due date, status, or TBD/null when grounded details are missing.
+                Prefer short bullet-like phrases over sentences.
+                Keep the output under 5,500 characters.
+                The document type is %s.
+                """.formatted(documentType.name());
+    }
+
+    private String summaryCompressionPrompt(DocumentType documentType,
+                                            String originalFileName,
+                                            String combinedSummary) {
+        return """
+                Uploaded document metadata:
+
+                - Document type: %s
+                - Original file name: %s
+
+                Aggregated chunk summaries:
+                %s
+                """.formatted(documentType.name(), originalFileName, combinedSummary);
     }
 
     private String chunkUserPrompt(DocumentType documentType,

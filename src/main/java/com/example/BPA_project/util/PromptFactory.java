@@ -8,10 +8,14 @@ public final class PromptFactory {
     }
 
     public static String instructions(DocumentType documentType) {
-        return instructions(documentType, false);
+        return instructions(documentType, "STANDARD");
     }
 
     public static String instructions(DocumentType documentType, boolean compactMode) {
+        return instructions(documentType, compactMode ? "COMPACT" : "STANDARD");
+    }
+
+    public static String instructions(DocumentType documentType, String detailLevel) {
         String common = """
                 You are an analyst for an office automation tool.
                 Read the uploaded document and produce an execution plan draft rather than a simple summary.
@@ -26,18 +30,36 @@ public final class PromptFactory {
                 Only set completedAt when the task is explicitly completed or the completion date is clearly supported by the document.
                 Merge duplicates and near-duplicates aggressively.
                 Prefer concise phrases over long sentences.
-                scheduleDraft must describe the overall rollout flow in 3 to 5 sentences.
+                Use short noun phrases where possible.
                 """;
 
-        String compact = compactMode
-                ? """
-                Keep the response compact.
-                Return at most 2 goals, 5 tasks, 2 risks, and 2 questions.
-                If the source contains many similar items, merge them into broader actionable items instead of listing each one separately.
-                """
-                : "";
+        String detailPrompt = switch (detailLevel) {
+            case "ULTRA_COMPACT" -> """
+                    Keep the response extremely compact.
+                    Return at most 2 goals, 3 tasks, 2 risks, and 1 question.
+                    Keep the title very short.
+                    Keep the summary to 2 short sentences.
+                    Keep scheduleDraft to 2 short sentences.
+                    Keep only the highest-priority actions.
+                    Merge similar actions aggressively.
+                    Use very short phrases for task, risk, and question text.
+                    """;
+            case "COMPACT" -> """
+                    Keep the response compact.
+                    Return at most 2 goals, 4 tasks, 2 risks, and 2 questions.
+                    Keep the title short.
+                    Keep the summary to 2 or 3 short sentences.
+                    Keep scheduleDraft to 2 or 3 short sentences.
+                    If the source contains many similar items, merge them into broader actionable items instead of listing each one separately.
+                    Prefer only the highest-priority actions.
+                    """;
+            default -> """
+                    scheduleDraft must describe the overall rollout flow in 3 to 5 sentences.
+                    Prefer the most important items over exhaustive lists.
+                    """;
+        };
 
-        return common + "\n" + compact + "\n" + switch (documentType) {
+        return common + "\n" + detailPrompt + "\n" + switch (documentType) {
             case MEETING -> """
                     This is meeting material.
                     Focus on action items, follow-up schedule, likely owners, review responsibility, and unresolved discussion points.
