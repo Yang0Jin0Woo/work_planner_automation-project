@@ -137,9 +137,13 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
     }
 
     private String buildTableSection(int slideNumber, String slideTitle, List<String> tableLines) {
+        TableInterpretation interpretation = interpretTable(tableLines);
         List<String> content = new ArrayList<>();
+        if (StringUtils.hasText(interpretation.tableTitle())) {
+            content.add("Table title: " + interpretation.tableTitle());
+        }
         content.addAll(tableLines);
-        content.addAll(buildStructuredTableRows(tableLines));
+        content.addAll(interpretation.structuredRows());
         return buildSection(slideNumber, slideTitle, content);
     }
 
@@ -163,31 +167,34 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
         }
     }
 
-    private List<String> buildStructuredTableRows(List<String> tableLines) {
+    private TableInterpretation interpretTable(List<String> tableLines) {
         List<String> structuredRows = new ArrayList<>();
         if (tableLines.size() < 2) {
-            return structuredRows;
+            return new TableInterpretation(null, structuredRows);
         }
 
         int headerRowIndex = detectHeaderRowIndex(tableLines);
         if (headerRowIndex < 0 || headerRowIndex >= tableLines.size() - 1) {
-            return structuredRows;
+            return new TableInterpretation(detectTableTitle(tableLines, 0), structuredRows);
         }
 
-        List<String> headers = splitColumns(tableLines.get(headerRowIndex));
+        int headerEndIndex = detectHeaderEndIndex(tableLines, headerRowIndex);
+        List<String> headers = mergeHeaderRows(tableLines, headerRowIndex, headerEndIndex);
         if (headers.size() < 2) {
-            return structuredRows;
+            return new TableInterpretation(detectTableTitle(tableLines, headerRowIndex), structuredRows);
         }
 
-        for (int rowIndex = headerRowIndex + 1; rowIndex < tableLines.size(); rowIndex++) {
-            List<String> values = splitColumns(tableLines.get(rowIndex));
-            if (values.size() != headers.size()) {
+        String tableTitle = detectTableTitle(tableLines, headerRowIndex);
+        for (int rowIndex = headerEndIndex + 1; rowIndex < tableLines.size(); rowIndex++) {
+            List<String> values = alignColumns(splitColumns(tableLines.get(rowIndex)), headers.size());
+            if (values.isEmpty() || isSeparatorRow(values) || looksLikeAnotherHeader(values)) {
                 continue;
             }
+
             List<String> pairs = new ArrayList<>();
             for (int columnIndex = 0; columnIndex < headers.size(); columnIndex++) {
                 String header = normalize(headers.get(columnIndex));
-                String value = normalize(values.get(columnIndex));
+                String value = columnIndex < values.size() ? normalize(values.get(columnIndex)) : null;
                 if (!StringUtils.hasText(header) || !StringUtils.hasText(value) || "-".equals(value)) {
                     continue;
                 }
@@ -197,11 +204,11 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
                 structuredRows.add("Structured row: " + String.join(", ", pairs));
             }
         }
-        return structuredRows;
+        return new TableInterpretation(tableTitle, structuredRows);
     }
 
     private int detectHeaderRowIndex(List<String> tableLines) {
-        int candidateLimit = Math.min(3, tableLines.size());
+        int candidateLimit = Math.min(4, tableLines.size());
         int bestIndex = -1;
         int bestScore = Integer.MIN_VALUE;
         for (int index = 0; index < candidateLimit; index++) {
@@ -213,6 +220,72 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
             }
         }
         return bestScore >= 2 ? bestIndex : 0;
+    }
+
+    private int detectHeaderEndIndex(List<String> tableLines, int headerRowIndex) {
+        int endIndex = headerRowIndex;
+        int expectedColumns = splitColumns(tableLines.get(headerRowIndex)).size();
+        for (int index = headerRowIndex + 1; index < Math.min(tableLines.size(), headerRowIndex + 3); index++) {
+            List<String> columns = splitColumns(tableLines.get(index));
+            if (columns.size() < 2) {
+                break;
+            }
+            if (Math.abs(columns.size() - expectedColumns) > 1) {
+                break;
+            }
+            if (scoreHeaderRow(columns, index) >= 4 && !containsLikelyDataValue(columns)) {
+                endIndex = index;
+                expectedColumns = Math.max(expectedColumns, columns.size());
+                continue;
+            }
+            break;
+        }
+        return endIndex;
+    }
+
+    private List<String> mergeHeaderRows(List<String> tableLines, int headerStartIndex, int headerEndIndex) {
+        int width = 0;
+        List<List<String>> headerRows = new ArrayList<>();
+        for (int index = headerStartIndex; index <= headerEndIndex; index++) {
+            List<String> columns = splitColumns(tableLines.get(index));
+            width = Math.max(width, columns.size());
+            headerRows.add(columns);
+        }
+
+        List<String> mergedHeaders = new ArrayList<>();
+        for (int columnIndex = 0; columnIndex < width; columnIndex++) {
+            List<String> parts = new ArrayList<>();
+            for (List<String> headerRow : headerRows) {
+                String value = columnIndex < headerRow.size() ? normalize(headerRow.get(columnIndex)) : null;
+                if (!StringUtils.hasText(value) || "-".equals(value)) {
+                    continue;
+                }
+                if (parts.isEmpty() || !parts.get(parts.size() - 1).equals(value)) {
+                    parts.add(value);
+                }
+            }
+            mergedHeaders.add(parts.isEmpty() ? "column" + (columnIndex + 1) : String.join(" / ", parts));
+        }
+        return mergedHeaders;
+    }
+
+    private String detectTableTitle(List<String> tableLines, int headerRowIndex) {
+        List<String> titleLines = new ArrayList<>();
+        for (int index = 0; index < headerRowIndex; index++) {
+            List<String> columns = splitColumns(tableLines.get(index));
+            if (columns.size() > 2) {
+                continue;
+            }
+            List<String> nonEmpty = nonEmptyColumns(columns);
+            if (nonEmpty.size() != 1) {
+                continue;
+            }
+            String candidate = nonEmpty.get(0);
+            if (looksLikeTitleOnlyCell(candidate) || isLikelyHeading(candidate, null)) {
+                titleLines.add(candidate);
+            }
+        }
+        return titleLines.isEmpty() ? null : String.join(" | ", titleLines);
     }
 
     private int scoreHeaderRow(List<String> columns, int rowIndex) {
@@ -243,6 +316,9 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
             }
             if (looksLikeTitleOnlyCell(normalized)) {
                 score -= 2;
+            }
+            if (normalized.matches(".*[0-9]{2,}.*")) {
+                score -= 1;
             }
         }
 
@@ -276,6 +352,60 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
         return value.length() > 20 && !value.contains("=") && !value.matches(".*[0-9].*");
     }
 
+    private boolean containsLikelyDataValue(List<String> columns) {
+        for (String column : columns) {
+            String normalized = normalize(column);
+            if (!StringUtils.hasText(normalized) || "-".equals(normalized)) {
+                continue;
+            }
+            if (normalized.matches(".*[0-9]{2,}.*") || normalized.contains("%") || normalized.contains("/") || normalized.contains("-")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean looksLikeAnotherHeader(List<String> values) {
+        return scoreHeaderRow(values, 1) >= 5 && !containsLikelyDataValue(values);
+    }
+
+    private boolean isSeparatorRow(List<String> values) {
+        for (String value : values) {
+            String normalized = normalize(value);
+            if (!StringUtils.hasText(normalized)) {
+                continue;
+            }
+            if (!normalized.matches("[-=]{2,}")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<String> alignColumns(List<String> values, int headerSize) {
+        List<String> aligned = new ArrayList<>(values);
+        if (aligned.size() > headerSize) {
+            List<String> trimmed = new ArrayList<>(aligned.subList(0, headerSize - 1));
+            trimmed.add(String.join(" / ", aligned.subList(headerSize - 1, aligned.size())));
+            return trimmed;
+        }
+        while (aligned.size() < headerSize) {
+            aligned.add("-");
+        }
+        return aligned;
+    }
+
+    private List<String> nonEmptyColumns(List<String> columns) {
+        List<String> nonEmpty = new ArrayList<>();
+        for (String column : columns) {
+            String normalized = normalize(column);
+            if (StringUtils.hasText(normalized) && !"-".equals(normalized)) {
+                nonEmpty.add(normalized);
+            }
+        }
+        return nonEmpty;
+    }
+
     private List<String> splitColumns(String line) {
         String[] parts = line.split("\\|");
         List<String> normalized = new ArrayList<>();
@@ -296,7 +426,7 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
         if (!tableLines.isEmpty()) {
             int headerRowIndex = detectHeaderRowIndex(tableLines);
             if (headerRowIndex >= 0) {
-                List<String> headers = splitColumns(tableLines.get(headerRowIndex));
+                List<String> headers = mergeHeaderRows(tableLines, headerRowIndex, detectHeaderEndIndex(tableLines, headerRowIndex));
                 if (!headers.isEmpty()) {
                     return String.join(" / ", headers);
                 }
@@ -388,6 +518,9 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
         }
         String normalized = value.replace("\r\n", "\n").replace('\r', '\n').trim();
         return StringUtils.hasText(normalized) ? normalized : null;
+    }
+
+    private record TableInterpretation(String tableTitle, List<String> structuredRows) {
     }
 
     private static class SlideExtraction {
