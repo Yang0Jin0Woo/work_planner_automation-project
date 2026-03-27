@@ -25,7 +25,9 @@ public class AnalysisSessionService {
                                                  int chunkCount,
                                                  AnalysisResultDto resultDto,
                                                  String visualAnalysisStatus,
-                                                 String visualAnalysisNote) {
+                                                 String visualAnalysisNote,
+                                                 String missingCheckStatus,
+                                                 List<String> missingCheckNotes) {
         AnalysisSession session = baseSession(fileInfo);
         session.setSourceText(sourceText);
         session.setAnalyzedChunkCount(chunkCount);
@@ -33,6 +35,8 @@ public class AnalysisSessionService {
         session.setMessage("Document analysis completed.");
         session.setVisualAnalysisStatus(trimOrNull(visualAnalysisStatus));
         session.setVisualAnalysisNote(trimOrNull(visualAnalysisNote));
+        session.setMissingCheckStatus(trimOrNull(missingCheckStatus));
+        session.setMissingCheckNotes(normalizeStrings(missingCheckNotes, "누락 점검 메모가 없습니다."));
         session.setAnalysisResult(normalize(resultDto));
         persist(session);
         return session;

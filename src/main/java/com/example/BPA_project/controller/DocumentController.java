@@ -1,6 +1,7 @@
 package com.example.BPA_project.controller;
 
 import com.example.BPA_project.dto.AnalysisResultDto;
+import com.example.BPA_project.dto.MissingCheckDto;
 import com.example.BPA_project.dto.UploadForm;
 import com.example.BPA_project.exception.DocumentAnalysisException;
 import com.example.BPA_project.model.AnalysisSession;
@@ -75,13 +76,22 @@ public class DocumentController {
                 storedFileInfo.getOriginalFileName(),
                 analysisInput
         );
+        MissingCheckDto missingCheck = openAiPlanningService.verifyMissingItems(
+                uploadForm.getDocumentType(),
+                storedFileInfo.getOriginalFileName(),
+                analysisInput,
+                result
+        );
+        String missingCheckStatus = missingCheck.isNeedsReview() ? "확인 필요" : "점검 완료";
         AnalysisSession analysisSession = analysisSessionService.createAnalyzedSession(
                 storedFileInfo,
                 analysisInput,
                 chunkCount,
                 result,
                 analysisPreparation.getVisualStatus(),
-                analysisPreparation.getVisualNote()
+                analysisPreparation.getVisualNote(),
+                missingCheckStatus,
+                missingCheck.getReviewNotes()
         );
 
         redirectAttributes.addFlashAttribute("successMessage", "Document upload and analysis completed.");

@@ -4,6 +4,7 @@ import com.example.BPA_project.config.AppProperties;
 import com.example.BPA_project.dto.AnalysisResultDto;
 import com.example.BPA_project.dto.ChunkAnalysisDto;
 import com.example.BPA_project.dto.DocumentType;
+import com.example.BPA_project.dto.MissingCheckDto;
 import com.example.BPA_project.dto.PlanTaskDto;
 import com.example.BPA_project.exception.DocumentAnalysisException;
 import com.example.BPA_project.util.JsonSchemaFactory;
@@ -57,6 +58,9 @@ public class OpenAiPlanningService {
     private static final int MERGED_CANDIDATE_LIMIT = 12;
     private static final int VISUAL_ANALYSIS_MAX_ASSETS = 3;
     private static final int VISUAL_ANALYSIS_OUTPUT_TOKENS = 900;
+    private static final int MISSING_CHECK_OUTPUT_TOKENS = 700;
+    private static final int MISSING_CHECK_SOURCE_LIMIT = 12_000;
+    private static final int MISSING_CHECK_RESULT_LIMIT = 3_000;
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
@@ -102,6 +106,52 @@ public class OpenAiPlanningService {
         );
     }
 
+
+    public MissingCheckDto verifyMissingItems(DocumentType documentType,
+                                              String originalFileName,
+                                              String analysisInput,
+                                              AnalysisResultDto resultDto) {
+        if (!StringUtils.hasText(appProperties.getOpenAi().getApiKey())
+                || !StringUtils.hasText(analysisInput)
+                || resultDto == null) {
+            MissingCheckDto fallback = new MissingCheckDto();
+            fallback.setNeedsReview(false);
+            fallback.setReviewNotes(List.of("누락 점검을 수행할 입력이 충분하지 않았습니다."));
+            return fallback;
+        }
+
+        try {
+            ObjectNode requestBody = baseRequestBody(MISSING_CHECK_OUTPUT_TOKENS);
+            requestBody.put("instructions", missingCheckInstructions(documentType));
+
+            ArrayNode input = requestBody.putArray("input");
+            ObjectNode userMessage = input.addObject();
+            userMessage.put("role", "user");
+            ArrayNode content = userMessage.putArray("content");
+            content.addObject()
+                    .put("type", "input_text")
+                    .put("text", missingCheckPrompt(documentType, originalFileName, analysisInput, resultDto));
+
+            ObjectNode textNode = requestBody.putObject("text");
+            ObjectNode format = textNode.putObject("format");
+            format.put("type", "json_schema");
+            format.put("name", "missing_check");
+            format.put("strict", true);
+            format.set("schema", JsonSchemaFactory.missingCheckSchema(objectMapper));
+
+            return parseStructuredResponse(
+                    sendRequest(requestBody),
+                    MissingCheckDto.class,
+                    "Missing-check output was not found in the OpenAI response.",
+                    "Failed to parse the OpenAI missing-check response."
+            );
+        } catch (JsonProcessingException | DocumentAnalysisException exception) {
+            MissingCheckDto fallback = new MissingCheckDto();
+            fallback.setNeedsReview(true);
+            fallback.setReviewNotes(List.of("긴 문서 누락 점검을 완료하지 못했습니다. 원문 확인이 필요합니다."));
+            return fallback;
+        }
+    }
     public AnalysisResultDto analyze(DocumentType documentType, String originalFileName, String extractedText) {
         if (!StringUtils.hasText(appProperties.getOpenAi().getApiKey())) {
             throw new DocumentAnalysisException("OPENAI_API_KEY is not configured.");
@@ -710,10 +760,14 @@ public class OpenAiPlanningService {
     }
 
     private String truncateForFinalStep(String text) {
+        return truncateByLength(text, MAX_FINAL_INPUT_CHARS);
+    }
+
+    private String truncateByLength(String text, int limit) {
         if (text == null) {
             return "";
         }
-        return text.length() <= MAX_FINAL_INPUT_CHARS ? text : text.substring(0, MAX_FINAL_INPUT_CHARS);
+        return text.length() <= limit ? text : text.substring(0, limit);
     }
 
     private String visualAnalysisInstructions(DocumentType documentType, int assetCount) {
@@ -744,6 +798,40 @@ public class OpenAiPlanningService {
         }
         prompt.append("\nReturn OCR findings and chart or diagram interpretation in Korean.");
         return prompt.toString();
+    }
+
+    private String missingCheckInstructions(DocumentType documentType) {
+        return """
+                You are reviewing a generated execution plan against extracted business-document source text.
+                Do not rewrite the whole plan.
+                Find only high-signal omissions that are concrete and document-grounded.
+                Focus on missing deadlines, owners, risks, questions, or follow-up actions.
+                Ignore trivial wording differences.
+                Write all review notes in Korean.
+                Return at most five concise review notes.
+                Set needsReview to true only when there is a meaningful omission risk.
+                The document type is %s.
+                """.formatted(documentType.name());
+    }
+
+    private String missingCheckPrompt(DocumentType documentType,
+                                      String originalFileName,
+                                      String analysisInput,
+                                      AnalysisResultDto resultDto) throws JsonProcessingException {
+        String sourceText = truncateByLength(analysisInput, MISSING_CHECK_SOURCE_LIMIT);
+        String resultJson = truncateByLength(objectMapper.writeValueAsString(resultDto), MISSING_CHECK_RESULT_LIMIT);
+        return """
+                Uploaded document metadata:
+
+                - Document type: %s
+                - Original file name: %s
+
+                Extracted source text and structured hints:
+                %s
+
+                Generated execution plan JSON:
+                %s
+                """.formatted(documentType.name(), originalFileName, sourceText, resultJson);
     }
     private String summaryCompressionInstructions(DocumentType documentType) {
         return """

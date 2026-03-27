@@ -58,6 +58,25 @@
         </div>
     </section>
 
+    <section class="meta-card" th:if="${analysisSession.missingCheckStatus}">
+        <div>
+            <strong>누락 점검 상태</strong>
+            <span th:text="${analysisSession.missingCheckStatus}">점검 완료</span>
+        </div>
+        <div>
+            <strong>누락 점검 메모</strong>
+            <span th:text="${analysisSession.missingCheckNotes != null and !analysisSession.missingCheckNotes.isEmpty() ? analysisSession.missingCheckNotes.get(0) : '추가 메모 없음'}">추가 메모 없음</span>
+        </div>
+    </section>
+
+    <section class="panel" th:if="${analysisSession.missingCheckNotes != null and !analysisSession.missingCheckNotes.isEmpty()}">
+        <h2>누락 점검 메모</h2>
+        <div class="list-grid" th:each="note, stat : ${analysisSession.missingCheckNotes}">
+            <label th:text="${stat.count} + '.'"></label>
+            <input type="text" th:value="${note}" readonly>
+        </div>
+    </section>
+
     <section class="usage-card">
         <div>
             <strong>사용 목적</strong>

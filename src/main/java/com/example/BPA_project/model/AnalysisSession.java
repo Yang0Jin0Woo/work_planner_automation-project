@@ -2,6 +2,8 @@ package com.example.BPA_project.model;
 
 import com.example.BPA_project.dto.AnalysisResultDto;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class AnalysisSession {
@@ -14,6 +16,8 @@ public class AnalysisSession {
     private String message;
     private String visualAnalysisStatus;
     private String visualAnalysisNote;
+    private String missingCheckStatus;
+    private List<String> missingCheckNotes = new ArrayList<>();
     private String reportPath;
     private int analyzedChunkCount;
     private LocalDateTime createdAt;
@@ -81,6 +85,22 @@ public class AnalysisSession {
 
     public void setVisualAnalysisNote(String visualAnalysisNote) {
         this.visualAnalysisNote = visualAnalysisNote;
+    }
+
+    public String getMissingCheckStatus() {
+        return missingCheckStatus;
+    }
+
+    public void setMissingCheckStatus(String missingCheckStatus) {
+        this.missingCheckStatus = missingCheckStatus;
+    }
+
+    public List<String> getMissingCheckNotes() {
+        return missingCheckNotes;
+    }
+
+    public void setMissingCheckNotes(List<String> missingCheckNotes) {
+        this.missingCheckNotes = missingCheckNotes;
     }
 
     public String getReportPath() {

@@ -128,6 +128,27 @@ public final class JsonSchemaFactory {
         return root;
     }
 
+
+    public static ObjectNode missingCheckSchema(ObjectMapper objectMapper) {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("type", "object");
+
+        ObjectNode properties = root.putObject("properties");
+        properties.putObject("needsReview").put("type", "boolean");
+
+        ObjectNode reviewNotes = properties.putObject("reviewNotes");
+        reviewNotes.put("type", "array");
+        reviewNotes.put("maxItems", 5);
+        reviewNotes.putObject("items")
+                .put("type", "string")
+                .put("maxLength", 140);
+
+        root.putArray("required")
+                .add("needsReview")
+                .add("reviewNotes");
+        root.put("additionalProperties", false);
+        return root;
+    }
     private static ObjectNode taskItemSchema(ObjectMapper objectMapper, int taskTextMaxLength) {
         ObjectNode taskItem = objectMapper.createObjectNode();
         taskItem.put("type", "object");
