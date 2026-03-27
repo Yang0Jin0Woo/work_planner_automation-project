@@ -62,7 +62,11 @@ public class DocumentController {
 
         StoredFileInfo storedFileInfo = fileStorageService.store(uploadForm.getFile());
         DocumentExtractionResult extractionResult = extractDocument(uploadForm, storedFileInfo);
-        String analysisInput = extractionResult.toAnalysisText();
+        String analysisInput = openAiPlanningService.prepareAnalysisInput(
+                uploadForm.getDocumentType(),
+                storedFileInfo.getOriginalFileName(),
+                extractionResult
+        );
         int chunkCount = openAiPlanningService.estimateChunkCount(analysisInput);
         AnalysisResultDto result = openAiPlanningService.analyze(
                 uploadForm.getDocumentType(),

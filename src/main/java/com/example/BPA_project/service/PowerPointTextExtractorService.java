@@ -1,11 +1,18 @@
 package com.example.BPA_project.service;
 
 import com.example.BPA_project.exception.DocumentAnalysisException;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
+import javax.imageio.ImageIO;
 import org.apache.poi.sl.usermodel.GroupShape;
 import org.apache.poi.sl.usermodel.PictureShape;
 import org.apache.poi.sl.usermodel.Shape;
@@ -26,6 +33,7 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
     private static final Pattern ROMAN_SECTION_PATTERN = Pattern.compile("^(?:[\\u2160-\\u2169]+[.]|[\\u2460-\\u2473])\\s*.+$");
     private static final Pattern BRACKET_SECTION_PATTERN = Pattern.compile("^\\[[^\\]]+\\]\\s*.+$");
     private static final Pattern YEAR_SECTION_PATTERN = Pattern.compile("^[0-9]{4}\\uB144\\s+.+$");
+    private static final int MAX_VISUAL_ASSETS = 3;
 
     @Override
     public boolean supports(String extension) {
@@ -38,6 +46,7 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
             List<String> bodySections = new ArrayList<>();
             List<String> tableSections = new ArrayList<>();
             List<String> visualSections = new ArrayList<>();
+            List<VisualAsset> visualAssets = new ArrayList<>();
 
             int slideNumber = 1;
             for (Slide<?, ?> slide : slideShow.getSlides()) {
@@ -54,13 +63,17 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
                 if (!slideExtraction.visualLines.isEmpty()) {
                     visualSections.add(buildVisualSection(slideNumber, slideTitle, slideExtraction.visualLines));
                 }
+                if (slideExtraction.hasVisualAsset) {
+                    addVisualAsset(visualAssets, renderSlideAsset(slide, slideShow.getPageSize(), slideNumber, slideTitle));
+                }
                 slideNumber++;
             }
 
             DocumentExtractionResult result = new DocumentExtractionResult(
                     joinSections(bodySections),
                     joinSections(tableSections),
-                    joinSections(visualSections)
+                    joinSections(visualSections),
+                    visualAssets
             );
             if (!result.hasAnyContent()) {
                 throw new DocumentAnalysisException("No extractable text was found in the PowerPoint file.");
@@ -97,12 +110,14 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
 
         if (shape instanceof PictureShape<?, ?> pictureShape) {
             extraction.visualLines.add(buildVisualNote("Image", pictureShape.getShapeName()));
+            extraction.hasVisualAsset = true;
             return;
         }
 
         String className = shape.getClass().getSimpleName();
         if (className.contains("GraphicFrame") || className.contains("Diagram") || className.contains("Chart")) {
             extraction.visualLines.add(buildVisualNote("Chart or diagram", shape.getShapeName()));
+            extraction.hasVisualAsset = true;
             return;
         }
 
@@ -129,7 +144,9 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
     }
 
     private String buildVisualSection(int slideNumber, String slideTitle, List<String> visualLines) {
-        return buildSection(slideNumber, slideTitle, visualLines);
+        List<String> content = new ArrayList<>(visualLines);
+        content.add("Slide snapshot is queued for OCR and chart or diagram interpretation.");
+        return buildSection(slideNumber, slideTitle, content);
     }
 
     private void extractTable(TableShape<?, ?> tableShape, List<String> tableLines) {
@@ -323,6 +340,37 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
                 || YEAR_SECTION_PATTERN.matcher(line).matches();
     }
 
+    private void addVisualAsset(List<VisualAsset> visualAssets, VisualAsset visualAsset) {
+        if (visualAsset == null || !visualAsset.hasData() || visualAssets.size() >= MAX_VISUAL_ASSETS) {
+            return;
+        }
+        visualAssets.add(visualAsset);
+    }
+
+    private VisualAsset renderSlideAsset(Slide<?, ?> slide, Dimension pageSize, int slideNumber, String slideTitle) throws IOException {
+        int width = Math.max(pageSize.width, 960);
+        int height = Math.max(pageSize.height, 540);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        graphics.setPaint(Color.WHITE);
+        graphics.fillRect(0, 0, width, height);
+        slide.draw(graphics);
+        graphics.dispose();
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", outputStream);
+        return new VisualAsset(buildVisualAssetLabel(slideNumber, slideTitle), "image/png", outputStream.toByteArray());
+    }
+
+    private String buildVisualAssetLabel(int slideNumber, String slideTitle) {
+        if (StringUtils.hasText(slideTitle)) {
+            return "Slide " + slideNumber + " | title: " + slideTitle;
+        }
+        return "Slide " + slideNumber;
+    }
+
     private String buildVisualNote(String kind, String shapeName) {
         if (!StringUtils.hasText(shapeName)) {
             return kind + " detected";
@@ -346,5 +394,6 @@ public class PowerPointTextExtractorService implements DocumentTextExtractor {
         private final List<String> bodyLines = new ArrayList<>();
         private final List<String> tableLines = new ArrayList<>();
         private final List<String> visualLines = new ArrayList<>();
+        private boolean hasVisualAsset;
     }
 }

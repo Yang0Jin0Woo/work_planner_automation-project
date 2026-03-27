@@ -55,6 +55,8 @@ public class OpenAiPlanningService {
     private static final int COMPACT_TRIGGER_SUMMARY_LENGTH = 7_500;
     private static final int COMPRESSED_SUMMARY_TARGET_CHARS = 5_500;
     private static final int MERGED_CANDIDATE_LIMIT = 12;
+    private static final int VISUAL_ANALYSIS_MAX_ASSETS = 3;
+    private static final int VISUAL_ANALYSIS_OUTPUT_TOKENS = 900;
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
@@ -66,6 +68,17 @@ public class OpenAiPlanningService {
         this.appProperties = appProperties;
         this.objectMapper = objectMapper;
         this.restTemplate = restTemplateBuilder.build();
+    }
+
+    public String prepareAnalysisInput(DocumentType documentType,
+                                       String originalFileName,
+                                       DocumentExtractionResult extractionResult) {
+        if (extractionResult == null) {
+            return "";
+        }
+
+        String visualAnalysisText = analyzeVisualAssets(documentType, originalFileName, extractionResult);
+        return extractionResult.toAnalysisText(visualAnalysisText);
     }
 
     public AnalysisResultDto analyze(DocumentType documentType, String originalFileName, String extractedText) {
@@ -103,6 +116,46 @@ public class OpenAiPlanningService {
         return splitIntoChunks(text).size();
     }
 
+    private String analyzeVisualAssets(DocumentType documentType,
+                                       String originalFileName,
+                                       DocumentExtractionResult extractionResult) {
+        if (!StringUtils.hasText(appProperties.getOpenAi().getApiKey())
+                || extractionResult == null
+                || !extractionResult.hasVisualAssets()) {
+            return null;
+        }
+
+        List<VisualAsset> visualAssets = extractionResult.getVisualAssets().stream()
+                .filter(VisualAsset::hasData)
+                .limit(VISUAL_ANALYSIS_MAX_ASSETS)
+                .toList();
+        if (visualAssets.isEmpty()) {
+            return null;
+        }
+
+        try {
+            ObjectNode requestBody = baseRequestBody(VISUAL_ANALYSIS_OUTPUT_TOKENS);
+            requestBody.put("instructions", visualAnalysisInstructions(documentType, visualAssets.size()));
+
+            ArrayNode input = requestBody.putArray("input");
+            ObjectNode userMessage = input.addObject();
+            userMessage.put("role", "user");
+            ArrayNode content = userMessage.putArray("content");
+            content.addObject()
+                    .put("type", "input_text")
+                    .put("text", visualAnalysisPrompt(documentType, originalFileName, visualAssets));
+
+            for (VisualAsset visualAsset : visualAssets) {
+                content.addObject()
+                        .put("type", "input_image")
+                        .put("image_url", visualAsset.toDataUrl());
+            }
+
+            return parseTextResponse(sendRequest(requestBody));
+        } catch (JsonProcessingException | DocumentAnalysisException exception) {
+            return null;
+        }
+    }
     private ChunkAnalysisDto extractChunkAnalysis(DocumentType documentType,
                                                   String originalFileName,
                                                   String chunkText,
@@ -642,6 +695,35 @@ public class OpenAiPlanningService {
         return text.length() <= MAX_FINAL_INPUT_CHARS ? text : text.substring(0, MAX_FINAL_INPUT_CHARS);
     }
 
+    private String visualAnalysisInstructions(DocumentType documentType, int assetCount) {
+        return """
+                You are analyzing rendered page or slide images from a business document.
+                Perform OCR when visible text appears inside screenshots, diagrams, or embedded images.
+                Explain chart, graph, and diagram meaning only when the visual evidence clearly supports it.
+                Do not invent numbers or labels that are unreadable.
+                Write in Korean.
+                Keep the output concise and practical for later execution-plan generation.
+                Organize the output as short bullet-like lines.
+                For each visual asset, include the visual label, OCR summary, chart or diagram interpretation, and any important task, deadline, owner, risk, or number.
+                The document type is %s.
+                The number of visual assets is %d.
+                """.formatted(documentType.name(), assetCount);
+    }
+
+    private String visualAnalysisPrompt(DocumentType documentType,
+                                        String originalFileName,
+                                        List<VisualAsset> visualAssets) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("Document metadata:\n")
+                .append("- Document type: ").append(documentType.name()).append("\n")
+                .append("- Original file name: ").append(originalFileName).append("\n")
+                .append("- Visual assets:\n");
+        for (VisualAsset visualAsset : visualAssets) {
+            prompt.append("  - ").append(visualAsset.getLabel()).append("\n");
+        }
+        prompt.append("\nReturn OCR findings and chart or diagram interpretation in Korean.");
+        return prompt.toString();
+    }
     private String summaryCompressionInstructions(DocumentType documentType) {
         return """
                 You are compressing merged business-document candidates for a later structured planning step.

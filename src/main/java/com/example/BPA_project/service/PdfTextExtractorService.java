@@ -1,16 +1,20 @@
 package com.example.BPA_project.service;
 
 import com.example.BPA_project.exception.DocumentAnalysisException;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
+import javax.imageio.ImageIO;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.graphics.PDXObject;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -25,6 +29,7 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
     private static final Pattern ROMAN_SECTION_PATTERN = Pattern.compile("^(?:[\\u2160-\\u2169]+[.]|[\\u2460-\\u2473])\\s*.+$");
     private static final Pattern BRACKET_SECTION_PATTERN = Pattern.compile("^\\[[^\\]]+\\]\\s*.+$");
     private static final Pattern YEAR_SECTION_PATTERN = Pattern.compile("^[0-9]{4}\\uB144\\s+.+$");
+    private static final int MAX_VISUAL_ASSETS = 3;
 
     @Override
     public boolean supports(String extension) {
@@ -35,9 +40,11 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
     public DocumentExtractionResult extract(byte[] fileBytes, String originalFileName) {
         try (PDDocument document = Loader.loadPDF(fileBytes)) {
             PDFTextStripper stripper = new PDFTextStripper();
+            PDFRenderer renderer = new PDFRenderer(document);
             List<String> bodySections = new ArrayList<>();
             List<String> tableSections = new ArrayList<>();
             List<String> visualSections = new ArrayList<>();
+            List<VisualAsset> visualAssets = new ArrayList<>();
 
             for (int pageIndex = 0; pageIndex < document.getNumberOfPages(); pageIndex++) {
                 int pageNumber = pageIndex + 1;
@@ -57,13 +64,15 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
                 int imageCount = countImages(document.getPage(pageIndex).getResources());
                 if (imageCount > 0) {
                     visualSections.add(buildVisualSection(pageNumber, pageHeading, imageCount));
+                    addVisualAsset(visualAssets, renderPageAsset(renderer, pageIndex, pageNumber, pageHeading));
                 }
             }
 
             DocumentExtractionResult result = new DocumentExtractionResult(
                     joinSections(bodySections),
                     joinSections(tableSections),
-                    joinSections(visualSections)
+                    joinSections(visualSections),
+                    visualAssets
             );
             if (!result.hasAnyContent()) {
                 throw new DocumentAnalysisException("No extractable text was found in the PDF.");
@@ -248,9 +257,8 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
         if (StringUtils.hasText(heading)) {
             visual.append(" | title: ").append(heading);
         }
-        visual.append("\n");
-        visual.append("Detected ").append(imageCount).append(" image object(s). ");
-        visual.append("Embedded image text or diagram meaning may require OCR or vision analysis.");
+        visual.append("\nDetected ").append(imageCount).append(" image object(s). ");
+        visual.append("Page snapshot is queued for OCR and chart or diagram interpretation.");
         return visual.toString();
     }
 
@@ -329,6 +337,27 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
             }
         }
         return count;
+    }
+
+    private void addVisualAsset(List<VisualAsset> visualAssets, VisualAsset visualAsset) {
+        if (visualAsset == null || !visualAsset.hasData() || visualAssets.size() >= MAX_VISUAL_ASSETS) {
+            return;
+        }
+        visualAssets.add(visualAsset);
+    }
+
+    private VisualAsset renderPageAsset(PDFRenderer renderer, int pageIndex, int pageNumber, String heading) throws IOException {
+        BufferedImage image = renderer.renderImageWithDPI(pageIndex, 120);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", outputStream);
+        return new VisualAsset(buildVisualAssetLabel(pageNumber, heading), "image/png", outputStream.toByteArray());
+    }
+
+    private String buildVisualAssetLabel(int pageNumber, String heading) {
+        if (StringUtils.hasText(heading)) {
+            return "PDF page " + pageNumber + " | title: " + heading;
+        }
+        return "PDF page " + pageNumber;
     }
 
     private String joinSections(List<String> sections) {
