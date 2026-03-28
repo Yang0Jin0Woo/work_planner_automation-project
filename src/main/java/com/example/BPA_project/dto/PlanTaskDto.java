@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 public class PlanTaskDto {
 
-    @NotBlank(message = "할 일은 비워둘 수 없습니다.")
+    @NotBlank(message = "작업명은 비워둘 수 없습니다.")
     private String task;
 
     @NotBlank(message = "우선순위를 선택해주세요.")

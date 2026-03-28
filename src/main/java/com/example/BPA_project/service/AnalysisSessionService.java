@@ -46,11 +46,11 @@ public class AnalysisSessionService {
         session.setSourceText(sourceText);
         session.setAnalyzedChunkCount(chunkCount);
         session.setSourceStatus("ANALYZED");
-        session.setMessage("Document analysis completed.");
+        session.setMessage("문서 분석이 완료되었습니다.");
         session.setVisualAnalysisStatus(trimOrNull(visualAnalysisStatus));
         session.setVisualAnalysisNote(trimOrNull(visualAnalysisNote));
         session.setMissingCheckStatus(trimOrNull(missingCheckStatus));
-        session.setMissingCheckNotes(normalizeStrings(missingCheckNotes, "No missing-check notes available."));
+        session.setMissingCheckNotes(normalizeStrings(missingCheckNotes, "추가 메모 없음"));
         session.setAnalysisResult(normalize(resultDto));
         persist(session);
         return session;
@@ -58,7 +58,7 @@ public class AnalysisSessionService {
 
     public AnalysisSession getSession(String sessionId) {
         AnalysisSessionEntity entity = analysisSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new DocumentAnalysisException("Analysis session was not found."));
+                .orElseThrow(() -> new DocumentAnalysisException("분석 세션을 찾을 수 없습니다."));
         return toModel(entity);
     }
 
@@ -161,12 +161,12 @@ public class AnalysisSessionService {
 
     private AnalysisResultDto readAnalysisResult(String json) {
         if (!StringUtils.hasText(json)) {
-            throw new DocumentAnalysisException("Saved analysis result is empty.");
+            throw new DocumentAnalysisException("저장된 분석 결과가 비어 있습니다.");
         }
         try {
             return normalize(objectMapper.readValue(json, AnalysisResultDto.class));
         } catch (JsonProcessingException exception) {
-            throw new DocumentAnalysisException("Failed to read the saved analysis result.", exception);
+            throw new DocumentAnalysisException("저장된 분석 결과를 읽는 데 실패했습니다.", exception);
         }
     }
 
@@ -177,7 +177,7 @@ public class AnalysisSessionService {
         try {
             return new ArrayList<>(objectMapper.readValue(json, STRING_LIST_TYPE));
         } catch (JsonProcessingException exception) {
-            throw new DocumentAnalysisException("Failed to read the saved missing-check notes.", exception);
+            throw new DocumentAnalysisException("저장된 누락 점검 메모를 읽는 데 실패했습니다.", exception);
         }
     }
 
@@ -185,7 +185,7 @@ public class AnalysisSessionService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
-            throw new DocumentAnalysisException("Failed to save analysis data.", exception);
+            throw new DocumentAnalysisException("분석 데이터를 저장하는 데 실패했습니다.", exception);
         }
     }
 
@@ -193,13 +193,13 @@ public class AnalysisSessionService {
         AnalysisResultDto normalized = new AnalysisResultDto();
         DocumentType documentType = dto.getDocumentType() == null ? DocumentType.MEETING : dto.getDocumentType();
         normalized.setDocumentType(documentType);
-        normalized.setTitle(trimToDefault(dto.getTitle(), "Untitled"));
-        normalized.setSummary(trimToDefault(dto.getSummary(), "No summary available."));
-        normalized.setScheduleDraft(trimToDefault(dto.getScheduleDraft(), "No schedule draft available."));
-        normalized.setGoals(normalizeStrings(dto.getGoals(), "No goals available."));
+        normalized.setTitle(trimToDefault(dto.getTitle(), "제목 없음"));
+        normalized.setSummary(trimToDefault(dto.getSummary(), "요약 정보 없음"));
+        normalized.setScheduleDraft(trimToDefault(dto.getScheduleDraft(), "일정 초안 없음"));
+        normalized.setGoals(normalizeStrings(dto.getGoals(), "목표 정보 없음"));
         normalized.setTasks(normalizeTasks(documentType, dto.getTasks()));
-        normalized.setRisks(normalizeStrings(dto.getRisks(), "No risks available."));
-        normalized.setQuestions(normalizeStrings(dto.getQuestions(), "No follow-up questions."));
+        normalized.setRisks(normalizeStrings(dto.getRisks(), "리스크 정보 없음"));
+        normalized.setQuestions(normalizeStrings(dto.getQuestions(), "추가 확인 사항 없음"));
         return normalized;
     }
 

@@ -52,13 +52,13 @@ public class DocumentController {
         if (bindingResult.hasErrors() || uploadForm.getFile() == null || uploadForm.getFile().isEmpty()) {
             redirectAttributes.addFlashAttribute("org.springframework.validation.BindingResult.uploadForm", bindingResult);
             redirectAttributes.addFlashAttribute("uploadForm", uploadForm);
-            redirectAttributes.addFlashAttribute("errorMessage", "Check the document type and file.");
+            redirectAttributes.addFlashAttribute("errorMessage", "\uBB38\uC11C \uC720\uD615\uACFC \uD30C\uC77C\uC744 \uD655\uC778\uD574\uC8FC\uC138\uC694.");
             return "redirect:/";
         }
 
         String extension = FileNameUtils.extension(uploadForm.getFile().getOriginalFilename());
         if (!extension.equals("pdf") && !extension.equals("ppt") && !extension.equals("pptx")) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Only PDF, PPT, and PPTX files can be uploaded.");
+            redirectAttributes.addFlashAttribute("errorMessage", "PDF, PPT, PPTX \uD30C\uC77C\uB9CC \uC5C5\uB85C\uB4DC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
             return "redirect:/";
         }
 
@@ -82,7 +82,7 @@ public class DocumentController {
                 analysisInput,
                 result
         );
-        String missingCheckStatus = missingCheck.isNeedsReview() ? "확인 필요" : "점검 완료";
+        String missingCheckStatus = missingCheck.isNeedsReview() ? "\uD655\uC778 \uD544\uC694" : "\uC810\uAC80 \uC644\uB8CC";
         AnalysisSession analysisSession = analysisSessionService.createAnalyzedSession(
                 storedFileInfo,
                 analysisInput,
@@ -94,7 +94,7 @@ public class DocumentController {
                 missingCheck.getReviewNotes()
         );
 
-        redirectAttributes.addFlashAttribute("successMessage", "Document upload and analysis completed.");
+        redirectAttributes.addFlashAttribute("successMessage", "\uBB38\uC11C \uC5C5\uB85C\uB4DC\uC640 \uBD84\uC11D\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
         return "redirect:/documents/" + analysisSession.getSessionId();
     }
 
@@ -111,7 +111,7 @@ public class DocumentController {
                          @ModelAttribute("result") AnalysisResultDto result,
                          RedirectAttributes redirectAttributes) {
         analysisSessionService.updateAnalysis(sessionId, result);
-        redirectAttributes.addFlashAttribute("successMessage", "Changes saved.");
+        redirectAttributes.addFlashAttribute("successMessage", "\uBCC0\uACBD\uC0AC\uD56D\uC744 \uC800\uC7A5\uD588\uC2B5\uB2C8\uB2E4.");
         return "redirect:/documents/" + sessionId;
     }
 
@@ -120,7 +120,7 @@ public class DocumentController {
             DocumentTextExtractor extractor = documentTextExtractorResolver.resolve(storedFileInfo.getExtension());
             return extractor.extract(uploadForm.getFile().getBytes(), storedFileInfo.getOriginalFileName());
         } catch (IOException exception) {
-            throw new DocumentAnalysisException("Failed to read the uploaded file.", exception);
+            throw new DocumentAnalysisException("\uC5C5\uB85C\uB4DC\uD55C \uD30C\uC77C\uC744 \uC77D\uB294 \uB370 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.", exception);
         }
     }
 }

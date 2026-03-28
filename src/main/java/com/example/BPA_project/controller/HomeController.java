@@ -39,19 +39,19 @@ public class HomeController {
     public String deleteSelectedSessions(@RequestParam(name = "sessionIds", required = false) List<String> sessionIds,
                                          RedirectAttributes redirectAttributes) {
         if (sessionIds == null || sessionIds.isEmpty()) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Select at least one analysis result to delete.");
+            redirectAttributes.addFlashAttribute("errorMessage", "삭제할 분석 결과를 하나 이상 선택해주세요.");
             return "redirect:/documents/delete";
         }
 
         analysisSessionService.deleteSessions(sessionIds);
-        redirectAttributes.addFlashAttribute("successMessage", sessionIds.size() + " analysis result(s) deleted.");
+        redirectAttributes.addFlashAttribute("successMessage", sessionIds.size() + "건의 분석 결과를 삭제했습니다.");
         return "redirect:/documents/delete";
     }
 
     @PostMapping("/documents/delete-all")
     public String deleteAllSessions(RedirectAttributes redirectAttributes) {
         analysisSessionService.deleteAllSessions();
-        redirectAttributes.addFlashAttribute("successMessage", "All saved analysis sessions were deleted.");
+        redirectAttributes.addFlashAttribute("successMessage", "저장된 분석 결과를 모두 삭제했습니다.");
         return "redirect:/documents/delete";
     }
 }

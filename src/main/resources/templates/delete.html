@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+ï»¿<!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ºÐ¼® °á°ú °ü¸®</title>
+    <title>ë¶„ì„ ê²°ê³¼ ê´€ë¦¬</title>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body class="result-body">
@@ -11,11 +11,11 @@
     <header class="page-header">
         <div>
             <p class="eyebrow">Analysis Session Manager</p>
-            <h1>ºÐ¼® °á°ú °ü¸®</h1>
-            <p class="subtle">ÀúÀåµÈ ºÐ¼® °á°ú¸¦ ¼±ÅÃÇØ¼­ »èÁ¦ÇÒ ¼ö ÀÖ½À´Ï´Ù.</p>
+            <h1>ë¶„ì„ ê²°ê³¼ ê´€ë¦¬</h1>
+            <p class="subtle">ì €ìž¥ëœ ë¶„ì„ ê²°ê³¼ë¥¼ ì„ íƒí•´ì„œ ì‚­ì œí•  ìˆ˜ ìžˆìŠµë‹ˆë‹¤.</p>
         </div>
         <div class="header-actions">
-            <a class="secondary-button" th:href="@{/}">È¨À¸·Î</a>
+            <a class="secondary-button" th:href="@{/}">í™ˆìœ¼ë¡œ</a>
         </div>
     </header>
 
@@ -23,16 +23,16 @@
     <div class="alert error" th:if="${errorMessage}" th:text="${errorMessage}"></div>
 
     <section class="panel" th:if="${sessions == null or sessions.isEmpty()}">
-        <h2>ÀúÀåµÈ ºÐ¼® °á°ú°¡ ¾ø½À´Ï´Ù.</h2>
-        <p class="subtle">¹®¼­¸¦ ¾÷·ÎµåÇÏ¸é ¿©±â¿¡¼­ ÀúÀåµÈ °á°ú¸¦ °ü¸®ÇÒ ¼ö ÀÖ½À´Ï´Ù.</p>
+        <h2>ì €ìž¥ëœ ë¶„ì„ ê²°ê³¼ê°€ ì—†ìŠµë‹ˆë‹¤.</h2>
+        <p class="subtle">ë¬¸ì„œë¥¼ ì—…ë¡œë“œí•˜ë©´ ì—¬ê¸°ì—ì„œ ì €ìž¥ëœ ê²°ê³¼ë¥¼ ê´€ë¦¬í•  ìˆ˜ ìžˆìŠµë‹ˆë‹¤.</p>
     </section>
 
     <form th:if="${sessions != null and !sessions.isEmpty()}" th:action="@{/documents/delete-selected}" method="post" id="deleteForm" class="editor-form">
         <section class="panel manage-toolbar">
             <div class="header-actions">
-                <button type="button" class="secondary-button" id="selectAllButton">ÀüÃ¼ ¼±ÅÃ</button>
-                <button type="button" class="secondary-button" id="clearSelectionButton">¼±ÅÃ ÇØÁ¦</button>
-                <button type="submit" class="danger-button manage-danger-button" onclick="return confirmSelectedDelete();">¼±ÅÃ »èÁ¦</button>
+                <button type="button" class="secondary-button" id="selectAllButton">ì „ì²´ ì„ íƒ</button>
+                <button type="button" class="secondary-button" id="clearSelectionButton">ì„ íƒ í•´ì œ</button>
+                <button type="submit" class="danger-button manage-danger-button" onclick="return confirmSelectedDelete();">ì„ íƒ ì‚­ì œ</button>
             </div>
         </section>
 
@@ -60,12 +60,12 @@
     </form>
 
     <form th:if="${sessions != null and !sessions.isEmpty()}" th:action="@{/documents/delete-all}" method="post" class="panel manage-danger-panel"
-          onsubmit="return confirm('ÀúÀåµÈ ºÐ¼® °á°ú¸¦ ¸ðµÎ »èÁ¦ÇÏ½Ã°Ú½À´Ï±î? ÀÌ ÀÛ¾÷Àº µÇµ¹¸± ¼ö ¾ø½À´Ï´Ù.');">
+          onsubmit="return confirm('ì €ìž¥ëœ ë¶„ì„ ê²°ê³¼ë¥¼ ëª¨ë‘ ì‚­ì œí•˜ì‹œê² ìŠµë‹ˆê¹Œ? ì´ ìž‘ì—…ì€ ë˜ëŒë¦´ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.');">
         <div class="manage-danger-copy">
-            <h2>ÀüÃ¼ »èÁ¦</h2>
-            <p class="subtle">¸ðµç ºÐ¼® °á°ú¸¦ ÇÑ ¹ø¿¡ »èÁ¦ÇÕ´Ï´Ù. ¼±ÅÃ »èÁ¦º¸´Ù À§ÇèÇÏ¹Ç·Î ÇÊ¿äÇÑ °æ¿ì¿¡¸¸ »ç¿ëÇÏ¼¼¿ä.</p>
+            <h2>ì „ì²´ ì‚­ì œ</h2>
+            <p class="subtle">ëª¨ë“  ë¶„ì„ ê²°ê³¼ë¥¼ í•œ ë²ˆì— ì‚­ì œí•©ë‹ˆë‹¤. ì„ íƒ ì‚­ì œë³´ë‹¤ ìœ„í—˜í•˜ë¯€ë¡œ í•„ìš”í•œ ê²½ìš°ì—ë§Œ ì‚¬ìš©í•˜ì„¸ìš”.</p>
         </div>
-        <button type="submit" class="danger-button manage-danger-button">ÀüÃ¼ »èÁ¦</button>
+        <button type="submit" class="danger-button manage-danger-button">ì „ì²´ ì‚­ì œ</button>
     </form>
 </main>
 
@@ -94,10 +94,10 @@
         window.confirmSelectedDelete = () => {
             const selectedCount = checkboxes.filter((checkbox) => checkbox.checked).length;
             if (selectedCount === 0) {
-                alert('»èÁ¦ÇÒ ºÐ¼® °á°ú¸¦ ÇÏ³ª ÀÌ»ó ¼±ÅÃÇÏ¼¼¿ä.');
+                alert('ì‚­ì œí•  ë¶„ì„ ê²°ê³¼ë¥¼ í•˜ë‚˜ ì´ìƒ ì„ íƒí•˜ì„¸ìš”.');
                 return false;
             }
-            return confirm(`¼±ÅÃÇÑ ${selectedCount}°³ÀÇ ºÐ¼® °á°ú¸¦ »èÁ¦ÇÏ½Ã°Ú½À´Ï±î?`);
+            return confirm(`ì„ íƒí•œ ${selectedCount}ê°œì˜ ë¶„ì„ ê²°ê³¼ë¥¼ ì‚­ì œí•˜ì‹œê² ìŠµë‹ˆê¹Œ?`);
         };
     })();
 </script>
