@@ -48,7 +48,9 @@ public class OpenAiPlanningService {
     private static final int CHUNK_SIZE = 9_000;
     private static final int MAX_FINAL_INPUT_CHARS = 18_000;
     private static final int CHUNK_ANALYSIS_OUTPUT_TOKENS = 900;
+    private static final int CHUNK_ANALYSIS_RETRY_OUTPUT_TOKENS = 1_400;
     private static final int SUMMARY_COMPRESSION_OUTPUT_TOKENS = 500;
+    private static final int SUMMARY_COMPRESSION_RETRY_OUTPUT_TOKENS = 900;
     private static final int STRUCTURED_RETRY_OUTPUT_TOKENS = 4_000;
     private static final int STRUCTURED_COMPACT_RETRY_OUTPUT_TOKENS = 5_000;
     private static final int COMPACT_TRIGGER_TEXT_LENGTH = 10_000;
@@ -232,26 +234,27 @@ public class OpenAiPlanningService {
                                                   String chunkText,
                                                   int chunkNumber,
                                                   int totalChunks) throws JsonProcessingException {
-        ObjectNode requestBody = baseRequestBody(CHUNK_ANALYSIS_OUTPUT_TOKENS);
-        requestBody.put("instructions", PromptFactory.chunkExtractionInstructions(documentType, chunkNumber, totalChunks));
-
-        ArrayNode input = requestBody.putArray("input");
-        ObjectNode userMessage = input.addObject();
-        userMessage.put("role", "user");
-        ArrayNode content = userMessage.putArray("content");
-        content.addObject()
-                .put("type", "input_text")
-                .put("text", PromptFactory.chunkExtractionPrompt(documentType, originalFileName, chunkText, chunkNumber, totalChunks));
-
-        ObjectNode text = requestBody.putObject("text");
-        ObjectNode format = text.putObject("format");
-        format.put("type", "json_schema");
-        format.put("name", "chunk_analysis");
-        format.put("strict", true);
-        format.set("schema", JsonSchemaFactory.chunkAnalysisSchema(objectMapper));
+        String responseBody = sendRequest(buildChunkAnalysisRequest(
+                documentType,
+                originalFileName,
+                chunkText,
+                chunkNumber,
+                totalChunks,
+                CHUNK_ANALYSIS_OUTPUT_TOKENS
+        ));
+        if (isMaxOutputTokenIncomplete(responseBody)) {
+            responseBody = sendRequest(buildChunkAnalysisRequest(
+                    documentType,
+                    originalFileName,
+                    chunkText,
+                    chunkNumber,
+                    totalChunks,
+                    CHUNK_ANALYSIS_RETRY_OUTPUT_TOKENS
+            ));
+        }
 
         return parseStructuredResponse(
-                sendRequest(requestBody),
+                responseBody,
                 ChunkAnalysisDto.class,
                 "Structured chunk analysis was not found in the OpenAI response.",
                 "Failed to parse the OpenAI chunk analysis response."
@@ -271,7 +274,54 @@ public class OpenAiPlanningService {
     private String compressSummary(DocumentType documentType,
                                    String originalFileName,
                                    String mergedCandidates) throws JsonProcessingException {
-        ObjectNode requestBody = baseRequestBody(SUMMARY_COMPRESSION_OUTPUT_TOKENS);
+        String responseBody = sendRequest(buildSummaryCompressionRequest(
+                documentType,
+                originalFileName,
+                mergedCandidates,
+                SUMMARY_COMPRESSION_OUTPUT_TOKENS
+        ));
+        if (isMaxOutputTokenIncomplete(responseBody)) {
+            responseBody = sendRequest(buildSummaryCompressionRequest(
+                    documentType,
+                    originalFileName,
+                    mergedCandidates,
+                    SUMMARY_COMPRESSION_RETRY_OUTPUT_TOKENS
+            ));
+        }
+        return parseTextResponse(responseBody);
+    }
+
+    private ObjectNode buildChunkAnalysisRequest(DocumentType documentType,
+                                                 String originalFileName,
+                                                 String chunkText,
+                                                 int chunkNumber,
+                                                 int totalChunks,
+                                                 int maxOutputTokens) {
+        ObjectNode requestBody = baseRequestBody(maxOutputTokens);
+        requestBody.put("instructions", PromptFactory.chunkExtractionInstructions(documentType, chunkNumber, totalChunks));
+
+        ArrayNode input = requestBody.putArray("input");
+        ObjectNode userMessage = input.addObject();
+        userMessage.put("role", "user");
+        ArrayNode content = userMessage.putArray("content");
+        content.addObject()
+                .put("type", "input_text")
+                .put("text", PromptFactory.chunkExtractionPrompt(documentType, originalFileName, chunkText, chunkNumber, totalChunks));
+
+        ObjectNode text = requestBody.putObject("text");
+        ObjectNode format = text.putObject("format");
+        format.put("type", "json_schema");
+        format.put("name", "chunk_analysis");
+        format.put("strict", true);
+        format.set("schema", JsonSchemaFactory.chunkAnalysisSchema(objectMapper));
+        return requestBody;
+    }
+
+    private ObjectNode buildSummaryCompressionRequest(DocumentType documentType,
+                                                      String originalFileName,
+                                                      String mergedCandidates,
+                                                      int maxOutputTokens) {
+        ObjectNode requestBody = baseRequestBody(maxOutputTokens);
         requestBody.put("instructions", summaryCompressionInstructions(documentType));
 
         ArrayNode input = requestBody.putArray("input");
@@ -281,8 +331,7 @@ public class OpenAiPlanningService {
         content.addObject()
                 .put("type", "input_text")
                 .put("text", PromptFactory.mergedCandidatePrompt(documentType, originalFileName, truncateForFinalStep(mergedCandidates)));
-
-        return parseTextResponse(sendRequest(requestBody));
+        return requestBody;
     }
 
     private AnalysisResultDto requestStructuredPlan(DocumentType documentType,

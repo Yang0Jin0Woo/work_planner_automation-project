@@ -38,20 +38,20 @@
 
         <section class="panel manage-list-panel">
             <div class="session-list">
-                <label class="session-row" th:each="session : ${sessions}">
+                <label class="session-row" th:each="item : ${sessions}">
                     <div class="session-select">
-                        <input type="checkbox" name="sessionIds" th:value="${session.sessionId}" class="session-checkbox">
+                        <input type="checkbox" name="sessionIds" th:value="${item.sessionId}" class="session-checkbox">
                     </div>
                     <div class="session-main">
                         <div class="session-title-row">
-                            <strong th:text="${session.analysisResult != null ? session.analysisResult.title : 'Untitled'}">Untitled</strong>
-                            <span class="session-type" th:text="${session.analysisResult != null ? session.analysisResult.documentType.label : 'Unknown'}">Unknown</span>
+                            <strong th:text="${item.analysisResult != null ? item.analysisResult.title : '제목 없음'}">제목 없음</strong>
+                            <span class="session-type" th:text="${item.analysisResult != null ? item.analysisResult.documentType.label : '문서 유형 없음'}">문서 유형 없음</span>
                         </div>
-                        <p class="subtle" th:text="${session.storedFileInfo != null ? session.storedFileInfo.originalFileName : 'No file name'}">No file name</p>
+                        <p class="subtle" th:text="${item.storedFileInfo != null ? item.storedFileInfo.originalFileName : '파일명 없음'}">파일명 없음</p>
                         <div class="session-meta">
-                            <span th:text="'상태: ' + ${session.sourceStatusLabel}">상태</span>
-                            <span th:text="'생성일: ' + ${#temporals.format(session.createdAt, 'yyyy-MM-dd HH:mm')}">생성일</span>
-                            <span th:text="'청크 수: ' + ${session.analyzedChunkCount}">청크 수</span>
+                            <span th:text="'상태: ' + ${item.sourceStatusLabel}">상태</span>
+                            <span th:text="'생성일: ' + ${#temporals.format(item.createdAt, 'yyyy-MM-dd HH:mm')}">생성일</span>
+                            <span th:text="'청크 수: ' + ${item.analyzedChunkCount}">청크 수</span>
                         </div>
                     </div>
                 </label>
