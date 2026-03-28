@@ -3,55 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>업무계획 도우미</title>
+    <title>?�무계획 ?�우�?/title>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body class="landing-body">
 <main class="landing-shell">
     <section class="hero-card">
         <p class="eyebrow">Business Planning Assistant</p>
-        <h1>문서를 업무계획으로 바꾸는 도구</h1>
+        <h1>문서�??�무계획?�로 바꾸???�구</h1>
         <p class="hero-copy">
-            PDF/PPT 문서를 업로드하면 AI가 요약, 우선순위 업무, 리스크, 확인 항목을 정리하여 실행계획 초안을 제공합니다.
+            PDF/PPT 문서�??�로?�하�?AI가 ?�약, ?�선?�위 ?�무, 리스?? ?�인 ??��???�리?�여 ?�행계획 초안???�공?�니??
         </p>
 
         <div class="hero-grid">
             <div class="hero-item">
-                <strong>1. 업로드</strong>
-                <span>PDF/PPT를 업로드하고 문서 유형을 선택합니다.</span>
+                <strong>1. ?�로??/strong>
+                <span>PDF/PPT�??�로?�하�?문서 ?�형???�택?�니??</span>
             </div>
             <div class="hero-item">
-                <strong>2. AI 구조화</strong>
-                <span>AI가 요약, 우선순위 업무, 리스크, 확인 항목을 구조화합니다.</span>
+                <strong>2. AI 구조??/strong>
+                <span>AI가 ?�약, ?�선?�위 ?�무, 리스?? ?�인 ??��??구조?�합?�다.</span>
             </div>
             <div class="hero-item">
-                <strong>3. 수정</strong>
-                <span>생성된 결과를 화면에서 바로 수정하고 검토합니다.</span>
+                <strong>3. ?�정</strong>
+                <span>?�성??결과�??�면?�서 바로 ?�정?�고 검?�합?�다.</span>
             </div>
         </div>
     </section>
 
     <section class="upload-card">
-        <h2>문서 업로드</h2>
+        <h2>문서 ?�로??/h2>
 
         <div class="alert success" th:if="${successMessage}" th:text="${successMessage}"></div>
         <div class="alert error" th:if="${errorMessage}" th:text="${errorMessage}"></div>
 
         <form th:action="@{/documents/upload}" th:object="${uploadForm}" method="post" enctype="multipart/form-data">
-            <label for="documentType">문서 유형</label>
+            <label for="documentType">문서 ?�형</label>
             <select id="documentType" th:field="*{documentType}">
-                <option value="">선택하세요</option>
+                <option value="">?�택?�세??/option>
                 <option th:each="type : ${documentTypes}" th:value="${type}" th:text="${type.label}"></option>
             </select>
 
-            <label for="file">파일 업로드</label>
+            <label for="file">?�일 ?�로??/label>
             <input id="file" type="file" th:field="*{file}" accept=".pdf,.ppt,.pptx">
 
             <p class="help-text">
-                업로드 가능한 최대 파일 크기는 10MB입니다.
+                ?�로??가?�한 최�? ?�일 ?�기??10MB?�니??
             </p>
 
-            <button type="submit">생성</button>
+            <div class="home-action-row">
+                <button type="submit">?�성</button>
+                <a class="secondary-button" th:href="@{/documents/delete}">�м� ��� ����</a>
+            </div>
         </form>
     </section>
 </main>

@@ -3,22 +3,36 @@ package com.example.BPA_project.service;
 import com.example.BPA_project.dto.AnalysisResultDto;
 import com.example.BPA_project.dto.DocumentType;
 import com.example.BPA_project.dto.PlanTaskDto;
+import com.example.BPA_project.entity.AnalysisSessionEntity;
 import com.example.BPA_project.exception.DocumentAnalysisException;
 import com.example.BPA_project.model.AnalysisSession;
 import com.example.BPA_project.model.StoredFileInfo;
+import com.example.BPA_project.repository.AnalysisSessionRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
 public class AnalysisSessionService {
 
-    private final Map<String, AnalysisSession> sessions = new ConcurrentHashMap<>();
+    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
+    };
+
+    private final AnalysisSessionRepository analysisSessionRepository;
+    private final ObjectMapper objectMapper;
+
+    public AnalysisSessionService(AnalysisSessionRepository analysisSessionRepository,
+                                  ObjectMapper objectMapper) {
+        this.analysisSessionRepository = analysisSessionRepository;
+        this.objectMapper = objectMapper;
+    }
 
     public AnalysisSession createAnalyzedSession(StoredFileInfo fileInfo,
                                                  String sourceText,
@@ -36,18 +50,16 @@ public class AnalysisSessionService {
         session.setVisualAnalysisStatus(trimOrNull(visualAnalysisStatus));
         session.setVisualAnalysisNote(trimOrNull(visualAnalysisNote));
         session.setMissingCheckStatus(trimOrNull(missingCheckStatus));
-        session.setMissingCheckNotes(normalizeStrings(missingCheckNotes, "누락 점검 메모가 없습니다."));
+        session.setMissingCheckNotes(normalizeStrings(missingCheckNotes, "No missing-check notes available."));
         session.setAnalysisResult(normalize(resultDto));
         persist(session);
         return session;
     }
 
     public AnalysisSession getSession(String sessionId) {
-        AnalysisSession session = sessions.get(sessionId);
-        if (session == null) {
-            throw new DocumentAnalysisException("Analysis session was not found. Results are kept in memory only.");
-        }
-        return session;
+        AnalysisSessionEntity entity = analysisSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new DocumentAnalysisException("Analysis session was not found."));
+        return toModel(entity);
     }
 
     public AnalysisSession updateAnalysis(String sessionId, AnalysisResultDto updatedResult) {
@@ -56,6 +68,23 @@ public class AnalysisSessionService {
         session.setUpdatedAt(LocalDateTime.now());
         persist(session);
         return session;
+    }
+
+    public List<AnalysisSession> getAllSessions() {
+        return analysisSessionRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt")).stream()
+                .map(this::toModel)
+                .toList();
+    }
+
+    public void deleteSessions(List<String> sessionIds) {
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            return;
+        }
+        analysisSessionRepository.deleteAllByIdInBatch(sessionIds);
+    }
+
+    public void deleteAllSessions() {
+        analysisSessionRepository.deleteAllInBatch();
     }
 
     private AnalysisSession baseSession(StoredFileInfo fileInfo) {
@@ -68,7 +97,96 @@ public class AnalysisSessionService {
     }
 
     private void persist(AnalysisSession session) {
-        sessions.put(session.getSessionId(), session);
+        analysisSessionRepository.save(toEntity(session));
+    }
+
+    private AnalysisSessionEntity toEntity(AnalysisSession session) {
+        AnalysisSessionEntity entity = new AnalysisSessionEntity();
+        entity.setSessionId(session.getSessionId());
+
+        StoredFileInfo fileInfo = session.getStoredFileInfo();
+        if (fileInfo != null) {
+            entity.setOriginalFileName(fileInfo.getOriginalFileName());
+            entity.setSavedFileName(fileInfo.getSavedFileName());
+            entity.setContentType(fileInfo.getContentType());
+            entity.setExtension(fileInfo.getExtension());
+            entity.setAbsolutePath(fileInfo.getAbsolutePath());
+            entity.setFileSize(fileInfo.getSize());
+            entity.setUploadedAt(fileInfo.getUploadedAt());
+        }
+
+        entity.setSourceText(session.getSourceText());
+        entity.setSourceStatus(session.getSourceStatus());
+        entity.setMessage(session.getMessage());
+        entity.setVisualAnalysisStatus(session.getVisualAnalysisStatus());
+        entity.setVisualAnalysisNote(session.getVisualAnalysisNote());
+        entity.setMissingCheckStatus(session.getMissingCheckStatus());
+        entity.setMissingCheckNotesJson(writeJson(session.getMissingCheckNotes()));
+        entity.setAnalysisResultJson(writeJson(session.getAnalysisResult()));
+        entity.setAnalyzedChunkCount(session.getAnalyzedChunkCount());
+        entity.setCreatedAt(session.getCreatedAt());
+        entity.setUpdatedAt(session.getUpdatedAt());
+        return entity;
+    }
+
+    private AnalysisSession toModel(AnalysisSessionEntity entity) {
+        AnalysisSession session = new AnalysisSession();
+        session.setSessionId(entity.getSessionId());
+        session.setStoredFileInfo(toStoredFileInfo(entity));
+        session.setSourceText(entity.getSourceText());
+        session.setSourceStatus(entity.getSourceStatus());
+        session.setMessage(entity.getMessage());
+        session.setVisualAnalysisStatus(entity.getVisualAnalysisStatus());
+        session.setVisualAnalysisNote(entity.getVisualAnalysisNote());
+        session.setMissingCheckStatus(entity.getMissingCheckStatus());
+        session.setMissingCheckNotes(readStringList(entity.getMissingCheckNotesJson()));
+        session.setAnalysisResult(readAnalysisResult(entity.getAnalysisResultJson()));
+        session.setAnalyzedChunkCount(entity.getAnalyzedChunkCount() == null ? 0 : entity.getAnalyzedChunkCount());
+        session.setCreatedAt(entity.getCreatedAt());
+        session.setUpdatedAt(entity.getUpdatedAt());
+        return session;
+    }
+
+    private StoredFileInfo toStoredFileInfo(AnalysisSessionEntity entity) {
+        StoredFileInfo fileInfo = new StoredFileInfo();
+        fileInfo.setOriginalFileName(entity.getOriginalFileName());
+        fileInfo.setSavedFileName(entity.getSavedFileName());
+        fileInfo.setContentType(entity.getContentType());
+        fileInfo.setExtension(entity.getExtension());
+        fileInfo.setAbsolutePath(entity.getAbsolutePath());
+        fileInfo.setSize(entity.getFileSize() == null ? 0L : entity.getFileSize());
+        fileInfo.setUploadedAt(entity.getUploadedAt());
+        return fileInfo;
+    }
+
+    private AnalysisResultDto readAnalysisResult(String json) {
+        if (!StringUtils.hasText(json)) {
+            throw new DocumentAnalysisException("Saved analysis result is empty.");
+        }
+        try {
+            return normalize(objectMapper.readValue(json, AnalysisResultDto.class));
+        } catch (JsonProcessingException exception) {
+            throw new DocumentAnalysisException("Failed to read the saved analysis result.", exception);
+        }
+    }
+
+    private List<String> readStringList(String json) {
+        if (!StringUtils.hasText(json)) {
+            return new ArrayList<>();
+        }
+        try {
+            return new ArrayList<>(objectMapper.readValue(json, STRING_LIST_TYPE));
+        } catch (JsonProcessingException exception) {
+            throw new DocumentAnalysisException("Failed to read the saved missing-check notes.", exception);
+        }
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException exception) {
+            throw new DocumentAnalysisException("Failed to save analysis data.", exception);
+        }
     }
 
     private AnalysisResultDto normalize(AnalysisResultDto dto) {
