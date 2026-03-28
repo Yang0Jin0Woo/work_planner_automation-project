@@ -1,6 +1,7 @@
 package com.example.BPA_project.model;
 
 import com.example.BPA_project.dto.AnalysisResultDto;
+import com.example.BPA_project.dto.DocumentType;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.Locale;
 public class AnalysisSession {
 
     private String sessionId;
+    private DocumentType documentType;
     private StoredFileInfo storedFileInfo;
     private AnalysisResultDto analysisResult;
     private String sourceText;
@@ -29,6 +31,14 @@ public class AnalysisSession {
 
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
+    }
+
+    public DocumentType getDocumentType() {
+        return documentType;
+    }
+
+    public void setDocumentType(DocumentType documentType) {
+        this.documentType = documentType;
     }
 
     public StoredFileInfo getStoredFileInfo() {
@@ -61,6 +71,16 @@ public class AnalysisSession {
 
     public void setSourceStatus(String sourceStatus) {
         this.sourceStatus = sourceStatus;
+    }
+
+    public String getSourceStatusLabel() {
+        return switch (sourceStatus) {
+            case "PENDING" -> "분석 대기";
+            case "PROCESSING" -> "분석 진행 중";
+            case "COMPLETED" -> "분석 완료";
+            case "FAILED" -> "분석 실패";
+            default -> sourceStatus == null ? "상태 없음" : sourceStatus;
+        };
     }
 
     public String getMessage() {
@@ -136,6 +156,26 @@ public class AnalysisSession {
             return String.format(Locale.US, "%.1f KB", size / 1024.0);
         }
         return String.format(Locale.US, "%.2f MB", size / (1024.0 * 1024.0));
+    }
+
+    public boolean isPending() {
+        return "PENDING".equals(sourceStatus);
+    }
+
+    public boolean isProcessing() {
+        return "PROCESSING".equals(sourceStatus);
+    }
+
+    public boolean isInProgress() {
+        return isPending() || isProcessing();
+    }
+
+    public boolean isCompleted() {
+        return "COMPLETED".equals(sourceStatus);
+    }
+
+    public boolean isFailed() {
+        return "FAILED".equals(sourceStatus);
     }
 
     public LocalDateTime getCreatedAt() {

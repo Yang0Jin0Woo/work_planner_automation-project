@@ -1,23 +1,19 @@
 package com.example.BPA_project.controller;
 
 import com.example.BPA_project.dto.AnalysisResultDto;
-import com.example.BPA_project.dto.MissingCheckDto;
 import com.example.BPA_project.dto.UploadForm;
 import com.example.BPA_project.exception.DocumentAnalysisException;
 import com.example.BPA_project.model.AnalysisSession;
 import com.example.BPA_project.model.StoredFileInfo;
-import com.example.BPA_project.service.AnalysisInputPreparation;
 import com.example.BPA_project.service.AnalysisSessionService;
-import com.example.BPA_project.service.DocumentExtractionResult;
-import com.example.BPA_project.service.DocumentTextExtractor;
-import com.example.BPA_project.service.DocumentTextExtractorResolver;
+import com.example.BPA_project.service.AsyncDocumentAnalysisService;
 import com.example.BPA_project.service.FileStorageService;
-import com.example.BPA_project.service.OpenAiPlanningService;
 import com.example.BPA_project.util.FileNameUtils;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -31,17 +27,14 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class DocumentController {
 
     private final FileStorageService fileStorageService;
-    private final DocumentTextExtractorResolver documentTextExtractorResolver;
-    private final OpenAiPlanningService openAiPlanningService;
+    private final AsyncDocumentAnalysisService asyncDocumentAnalysisService;
     private final AnalysisSessionService analysisSessionService;
 
     public DocumentController(FileStorageService fileStorageService,
-                              DocumentTextExtractorResolver documentTextExtractorResolver,
-                              OpenAiPlanningService openAiPlanningService,
+                              AsyncDocumentAnalysisService asyncDocumentAnalysisService,
                               AnalysisSessionService analysisSessionService) {
         this.fileStorageService = fileStorageService;
-        this.documentTextExtractorResolver = documentTextExtractorResolver;
-        this.openAiPlanningService = openAiPlanningService;
+        this.asyncDocumentAnalysisService = asyncDocumentAnalysisService;
         this.analysisSessionService = analysisSessionService;
     }
 
@@ -62,44 +55,30 @@ public class DocumentController {
             return "redirect:/";
         }
 
-        StoredFileInfo storedFileInfo = fileStorageService.store(uploadForm.getFile());
-        DocumentExtractionResult extractionResult = extractDocument(uploadForm, storedFileInfo);
-        AnalysisInputPreparation analysisPreparation = openAiPlanningService.prepareAnalysisInput(
-                uploadForm.getDocumentType(),
-                storedFileInfo.getOriginalFileName(),
-                extractionResult
-        );
-        String analysisInput = analysisPreparation.getAnalysisText();
-        int chunkCount = openAiPlanningService.estimateChunkCount(analysisInput);
-        AnalysisResultDto result = openAiPlanningService.analyze(
-                uploadForm.getDocumentType(),
-                storedFileInfo.getOriginalFileName(),
-                analysisInput
-        );
-        MissingCheckDto missingCheck = openAiPlanningService.verifyMissingItems(
-                uploadForm.getDocumentType(),
-                storedFileInfo.getOriginalFileName(),
-                analysisInput,
-                result
-        );
-        String missingCheckStatus = missingCheck.isNeedsReview() ? "확인 필요" : "점검 완료";
-        AnalysisSession analysisSession = analysisSessionService.createAnalyzedSession(
-                storedFileInfo,
-                analysisInput,
-                chunkCount,
-                result,
-                analysisPreparation.getVisualStatus(),
-                analysisPreparation.getVisualNote(),
-                missingCheckStatus,
-                missingCheck.getReviewNotes()
-        );
+        try {
+            byte[] fileBytes = uploadForm.getFile().getBytes();
+            StoredFileInfo storedFileInfo = fileStorageService.store(uploadForm.getFile());
+            AnalysisSession analysisSession = analysisSessionService.createPendingSession(
+                    uploadForm.getDocumentType(),
+                    storedFileInfo
+            );
 
-        redirectAttributes.addFlashAttribute("successMessage", "문서 업로드와 분석이 완료되었습니다.");
-        return "redirect:/documents/" + analysisSession.getSessionId();
+            asyncDocumentAnalysisService.analyze(
+                    analysisSession.getSessionId(),
+                    uploadForm.getDocumentType(),
+                    storedFileInfo,
+                    fileBytes
+            );
+
+            redirectAttributes.addFlashAttribute("successMessage", "문서 업로드가 완료되었습니다. 분석이 시작되면 결과 화면에서 상태를 확인할 수 있습니다.");
+            return "redirect:/documents/" + analysisSession.getSessionId();
+        } catch (IOException exception) {
+            throw new DocumentAnalysisException("업로드한 파일을 읽는 중 오류가 발생했습니다.", exception);
+        }
     }
 
     @GetMapping("/{sessionId}")
-    public String result(@PathVariable String sessionId, org.springframework.ui.Model model) {
+    public String result(@PathVariable String sessionId, Model model) {
         AnalysisSession analysisSession = analysisSessionService.getSession(sessionId);
         model.addAttribute("analysisSession", analysisSession);
         model.addAttribute("result", analysisSession.getAnalysisResult());
@@ -111,16 +90,7 @@ public class DocumentController {
                          @ModelAttribute("result") AnalysisResultDto result,
                          RedirectAttributes redirectAttributes) {
         analysisSessionService.updateAnalysis(sessionId, result);
-        redirectAttributes.addFlashAttribute("successMessage", "변경사항을 저장했습니다.");
+        redirectAttributes.addFlashAttribute("successMessage", "변경 사항을 저장했습니다.");
         return "redirect:/documents/" + sessionId;
-    }
-
-    private DocumentExtractionResult extractDocument(UploadForm uploadForm, StoredFileInfo storedFileInfo) {
-        try {
-            DocumentTextExtractor extractor = documentTextExtractorResolver.resolve(storedFileInfo.getExtension());
-            return extractor.extract(uploadForm.getFile().getBytes(), storedFileInfo.getOriginalFileName());
-        } catch (IOException exception) {
-            throw new DocumentAnalysisException("업로드한 파일을 읽는 데 실패했습니다.", exception);
-        }
     }
 }

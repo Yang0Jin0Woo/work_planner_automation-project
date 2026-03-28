@@ -15,6 +15,9 @@ public class AnalysisSessionEntity {
     @Column(name = "session_id", nullable = false, length = 36)
     private String sessionId;
 
+    @Column(name = "document_type")
+    private String documentType;
+
     @Column(name = "original_file_name")
     private String originalFileName;
 
@@ -43,7 +46,7 @@ public class AnalysisSessionEntity {
     @Column(name = "source_status")
     private String sourceStatus;
 
-    @Column(name = "message")
+    @Column(name = "message", columnDefinition = "TEXT")
     private String message;
 
     @Column(name = "visual_analysis_status")
@@ -79,6 +82,14 @@ public class AnalysisSessionEntity {
 
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
+    }
+
+    public String getDocumentType() {
+        return documentType;
+    }
+
+    public void setDocumentType(String documentType) {
+        this.documentType = documentType;
     }
 
     public String getOriginalFileName() {

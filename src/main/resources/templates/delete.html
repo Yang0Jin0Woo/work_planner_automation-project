@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
@@ -49,9 +49,9 @@
                         </div>
                         <p class="subtle" th:text="${session.storedFileInfo != null ? session.storedFileInfo.originalFileName : 'No file name'}">No file name</p>
                         <div class="session-meta">
-                            <span th:text="'Session ID: ' + ${session.sessionId}">Session ID</span>
-                            <span th:text="'Created: ' + ${#temporals.format(session.createdAt, 'yyyy-MM-dd HH:mm')}">Created</span>
-                            <span th:text="'Chunks: ' + ${session.analyzedChunkCount}">Chunks</span>
+                            <span th:text="'상태: ' + ${session.sourceStatusLabel}">상태</span>
+                            <span th:text="'생성일: ' + ${#temporals.format(session.createdAt, 'yyyy-MM-dd HH:mm')}">생성일</span>
+                            <span th:text="'청크 수: ' + ${session.analyzedChunkCount}">청크 수</span>
                         </div>
                     </div>
                 </label>

@@ -26,10 +26,10 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
     private static final Pattern TABLE_LINE_PATTERN = Pattern.compile(".*(\\t| {2,}|\\|).*");
     private static final Pattern ENGLISH_TITLE_PATTERN = Pattern.compile("^[A-Z0-9][A-Z0-9\\s\\-_/()]{2,80}$");
     private static final Pattern NUMBER_SECTION_PATTERN = Pattern.compile("^(?:[0-9]{1,2}(?:\\.[0-9]{1,2})*|[0-9]{1,2}[)])\\s*.+$");
-    private static final Pattern KOREAN_SECTION_PATTERN = Pattern.compile("^(?:[\\uAC00-\\uD558][.]|[\\uAC00-\\uD558][)])\\s*.+$");
-    private static final Pattern ROMAN_SECTION_PATTERN = Pattern.compile("^(?:[\\u2160-\\u2169]+[.]|[\\u2460-\\u2473])\\s*.+$");
+    private static final Pattern KOREAN_SECTION_PATTERN = Pattern.compile("^(?:[가-하][.]|[가-하][)])\\s*.+$");
+    private static final Pattern ROMAN_SECTION_PATTERN = Pattern.compile("^(?:[Ⅰ-Ⅹ]+[.]|[①-⑳])\\s*.+$");
     private static final Pattern BRACKET_SECTION_PATTERN = Pattern.compile("^\\[[^\\]]+\\]\\s*.+$");
-    private static final Pattern YEAR_SECTION_PATTERN = Pattern.compile("^[0-9]{4}\\uB144\\s+.+$");
+    private static final Pattern YEAR_SECTION_PATTERN = Pattern.compile("^[0-9]{4}년\\s+.+$");
     private static final int MAX_VISUAL_ASSETS = 3;
 
     @Override
@@ -417,22 +417,22 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
     }
 
     private boolean isHeaderKeyword(String value) {
-        return value.contains("\uC77C\uC815")
-                || value.contains("\uAE30\uD55C")
-                || value.contains("\uB0A0\uC9DC")
-                || value.contains("\uB2F4\uB2F9")
-                || value.contains("\uBD80\uC11C")
-                || value.contains("\uAE08\uC561")
-                || value.contains("\uC608\uC0B0")
-                || value.contains("\uC0C1\uD0DC")
-                || value.contains("\uD56D\uBAA9")
-                || value.contains("\uAD6C\uBD84")
-                || value.contains("\uB0B4\uC6A9")
-                || value.contains("\uBE44\uACE0")
-                || value.contains("\uC9C4\uD589")
-                || value.contains("\uC644\uB8CC")
-                || value.contains("\uCC45\uC784")
-                || value.contains("\uBD84\uB958");
+        return value.contains("일정")
+                || value.contains("기한")
+                || value.contains("날짜")
+                || value.contains("담당")
+                || value.contains("부서")
+                || value.contains("금액")
+                || value.contains("예산")
+                || value.contains("상태")
+                || value.contains("항목")
+                || value.contains("구분")
+                || value.contains("내용")
+                || value.contains("비고")
+                || value.contains("진행")
+                || value.contains("완료")
+                || value.contains("책임")
+                || value.contains("분류");
     }
 
     private boolean looksLikeTitleOnlyCell(String value) {
@@ -598,7 +598,7 @@ public class PdfTextExtractorService implements DocumentTextExtractor {
             score += 3;
         }
 
-        if (!line.endsWith(".") && !line.endsWith("\uB2E4.") && !line.endsWith("\uC694.")) {
+        if (!line.endsWith(".") && !line.endsWith("다.") && !line.endsWith("요.")) {
             score += 1;
         }
 
