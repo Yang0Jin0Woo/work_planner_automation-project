@@ -78,15 +78,15 @@ public class OpenAiPlanningService {
                                                       String originalFileName,
                                                       DocumentExtractionResult extractionResult) {
         if (extractionResult == null) {
-            return new AnalysisInputPreparation("", "\uC790\uB8CC \uC5C6\uC74C", "\uC774\uBBF8\uC9C0\u00B7\uCC28\uD2B8 \uC2A4\uB0C5\uC0F7\uC774 \uC5C6\uC5B4 \uCD94\uAC00 \uC2DC\uAC01 \uBD84\uC11D\uC744 \uC218\uD589\uD558\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.");
+            return new AnalysisInputPreparation("", "자료 없음", "이미지·차트 스냅샷이 없어 추가 시각 분석을 수행하지 않았습니다.");
         }
 
         int visualAssetCount = extractionResult.getVisualAssets().size();
         if (visualAssetCount == 0) {
             return new AnalysisInputPreparation(
                     extractionResult.toAnalysisText(),
-                    "\uC790\uB8CC \uC5C6\uC74C",
-                    "\uC774\uBBF8\uC9C0\u00B7\uCC28\uD2B8 \uC2A4\uB0C5\uC0F7\uC774 \uC5C6\uC5B4 \uCD94\uAC00 \uC2DC\uAC01 \uBD84\uC11D\uC744 \uC218\uD589\uD558\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4."
+                    "자료 없음",
+                    "이미지·차트 스냅샷이 없어 추가 시각 분석을 수행하지 않았습니다."
             );
         }
 
@@ -94,15 +94,15 @@ public class OpenAiPlanningService {
         if (StringUtils.hasText(visualAnalysisText)) {
             return new AnalysisInputPreparation(
                     extractionResult.toAnalysisText(visualAnalysisText),
-                    "\uC790\uB8CC \uBC18\uC601",
-                    "\uC2DC\uAC01 \uC790\uB8CC \uC2A4\uB0C5\uC0F7 " + visualAssetCount + "\uAC74\uC5D0 \uB300\uD55C OCR\u00B7\uCC28\uD2B8 \uD574\uC11D \uACB0\uACFC\uB97C \uBD84\uC11D \uC785\uB825\uC5D0 \uBC18\uC601\uD588\uC2B5\uB2C8\uB2E4."
+                    "자료 반영",
+                    "시각 자료 스냅샷 " + visualAssetCount + "건에 대한 OCR·차트 해석 결과를 분석 입력에 반영했습니다."
             );
         }
 
         return new AnalysisInputPreparation(
                 extractionResult.toAnalysisText(),
-                "\uD655\uC778 \uD544\uC694",
-                "\uC2DC\uAC01 \uC790\uB8CC \uC2A4\uB0C5\uC0F7\uC740 \uC788\uC5C8\uC9C0\uB9CC OCR\u00B7\uCC28\uD2B8 \uD574\uC11D \uACB0\uACFC\uB97C \uC548\uC815\uC801\uC73C\uB85C \uBC18\uC601\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uC6D0\uBB38 \uD655\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4."
+                "확인 필요",
+                "시각 자료 스냅샷은 있었지만 OCR·차트 해석 결과를 안정적으로 반영하지 못했습니다. 원문 확인이 필요합니다."
         );
     }
 
@@ -116,7 +116,7 @@ public class OpenAiPlanningService {
                 || resultDto == null) {
             MissingCheckDto fallback = new MissingCheckDto();
             fallback.setNeedsReview(false);
-            fallback.setReviewNotes(List.of("\uB204\uB77D \uC810\uAC80\uC744 \uC218\uD589\uD558\uAE30\uC5D0 \uC785\uB825 \uC815\uBCF4\uAC00 \uCDA9\uBD84\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."));
+            fallback.setReviewNotes(List.of("누락 점검을 수행하기에 입력 정보가 충분하지 않습니다."));
             return fallback;
         }
 
@@ -148,7 +148,7 @@ public class OpenAiPlanningService {
         } catch (JsonProcessingException | DocumentAnalysisException exception) {
             MissingCheckDto fallback = new MissingCheckDto();
             fallback.setNeedsReview(true);
-            fallback.setReviewNotes(List.of("\uBB38\uC11C \uB204\uB77D \uC810\uAC80\uC744 \uC644\uB8CC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uC6D0\uBB38 \uD655\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4."));
+            fallback.setReviewNotes(List.of("문서 누락 점검을 완료하지 못했습니다. 원문 확인이 필요합니다."));
             return fallback;
         }
     }
