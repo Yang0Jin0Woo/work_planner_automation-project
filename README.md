@@ -42,6 +42,24 @@
 - MySQL 기반 분석 결과 영속 저장
 - 저장된 분석 결과 목록 조회 및 선택 삭제/전체 삭제 기능
 
+## 화면 예시
+
+### 홈 화면
+
+![홈 화면](img/home_jpg.png)
+
+### 분석 진행 화면
+
+![분석 진행 화면](img/file_analysising.png)
+
+### 분석 결과 화면
+
+![분석 결과 화면](img/result_jpg.png)
+
+### 분석 결과 관리 화면
+
+![분석 결과 관리 화면](img/file_analysised_admin.png)
+
 ## 현재 구현 범위
 
 현재 프로젝트는 다음 흐름을 지원합니다.
@@ -57,7 +75,8 @@
 9. 최종 실행계획 JSON을 생성하고 누락 점검을 수행합니다.
 10. 분석 결과를 MySQL에 저장하고 세션 상태를 COMPLETED 또는 FAILED로 갱신합니다.
 11. 결과 화면에서 사용자는 진행 상태를 확인하거나, 완료 후 내용을 수정하고 다시 저장할 수 있습니다.
-12. 홈 화면에서 저장된 분석 결과를 관리하고 삭제할 수 있습니다.
+12. 분석 결과 관리 화면에서 저장된 결과를 다시 조회하거나 삭제할 수 있습니다.
+13. 결과 화면의 인쇄 기능을 통해 브라우저에서 PDF로 저장할 수 있습니다.
 
 ## 기술 스택
 
@@ -80,6 +99,11 @@
 ```text
 BPA_project
 ├─ build.gradle
+├─ img
+│  ├─ file_analysised_admin.png
+│  ├─ file_analysising.png
+│  ├─ home_jpg.png
+│  └─ result_jpg.png
 ├─ src
 │  ├─ main
 │  │  ├─ java/com/example/BPA_project

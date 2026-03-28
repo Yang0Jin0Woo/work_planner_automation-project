@@ -12,7 +12,7 @@
         <div>
             <p class="eyebrow">Analysis Session Manager</p>
             <h1>분석 결과 관리</h1>
-            <p class="subtle">저장된 분석 결과를 선택해서 삭제할 수 있습니다.</p>
+            <p class="subtle">저장된 분석 결과를 다시 조회하거나 선택해서 삭제할 수 있습니다.</p>
         </div>
         <div class="header-actions">
             <a class="secondary-button" th:href="@{/}">홈으로</a>
@@ -38,23 +38,31 @@
 
         <section class="panel manage-list-panel">
             <div class="session-list">
-                <label class="session-row" th:each="item : ${sessions}">
+                <div class="session-row" th:each="item : ${sessions}">
                     <div class="session-select">
                         <input type="checkbox" name="sessionIds" th:value="${item.sessionId}" class="session-checkbox">
                     </div>
                     <div class="session-main">
                         <div class="session-title-row">
-                            <strong th:text="${item.analysisResult != null ? item.analysisResult.title : '제목 없음'}">제목 없음</strong>
-                            <span class="session-type" th:text="${item.analysisResult != null ? item.analysisResult.documentType.label : '문서 유형 없음'}">문서 유형 없음</span>
+                            <a class="session-link"
+                               th:href="@{/documents/{sessionId}(sessionId=${item.sessionId})}"
+                               th:text="${item.analysisResult != null ? item.analysisResult.title : '제목 없음'}">제목 없음</a>
+                            <span class="session-type"
+                                  th:text="${item.analysisResult != null ? item.analysisResult.documentType.label : '문서 유형 없음'}">문서 유형 없음</span>
                         </div>
-                        <p class="subtle" th:text="${item.storedFileInfo != null ? item.storedFileInfo.originalFileName : '파일명 없음'}">파일명 없음</p>
+                        <p class="subtle"
+                           th:text="${item.storedFileInfo != null ? item.storedFileInfo.originalFileName : '파일명 없음'}">파일명 없음</p>
                         <div class="session-meta">
                             <span th:text="'상태: ' + ${item.sourceStatusLabel}">상태</span>
                             <span th:text="'생성일: ' + ${#temporals.format(item.createdAt, 'yyyy-MM-dd HH:mm')}">생성일</span>
                             <span th:text="'청크 수: ' + ${item.analyzedChunkCount}">청크 수</span>
                         </div>
                     </div>
-                </label>
+                    <div class="session-actions">
+                        <a class="secondary-button"
+                           th:href="@{/documents/{sessionId}(sessionId=${item.sessionId})}">결과 조회</a>
+                    </div>
+                </div>
             </div>
         </section>
     </form>
@@ -94,10 +102,10 @@
         window.confirmSelectedDelete = () => {
             const selectedCount = checkboxes.filter((checkbox) => checkbox.checked).length;
             if (selectedCount === 0) {
-                alert('삭제할 분석 결과를 하나 이상 선택하세요.');
+                alert('삭제할 분석 결과를 하나 이상 선택해주세요.');
                 return false;
             }
-            return confirm(`선택한 ${selectedCount}개의 분석 결과를 삭제하시겠습니까?`);
+            return confirm(`선택한 ${selectedCount}건의 분석 결과를 삭제하시겠습니까?`);
         };
     })();
 </script>
